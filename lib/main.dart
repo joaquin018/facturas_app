@@ -1,7 +1,100 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'dart:convert';
 
 void main() {
   runApp(const FacturasApp());
+}
+
+// --- DATABASE & PERSISTENCE ---
+
+class SavedProject {
+  final int? id;
+  final String name;
+  final String code;
+  final String valuesJson;
+
+  SavedProject({this.id, required this.name, required this.code, required this.valuesJson});
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'code': code,
+      'valuesJson': valuesJson,
+    };
+  }
+
+  factory SavedProject.fromMap(Map<String, dynamic> map) {
+    return SavedProject(
+      id: map['id'],
+      name: map['name'],
+      code: map['code'],
+      valuesJson: map['valuesJson'],
+    );
+  }
+}
+
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('projects.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = p.join(dbPath, filePath);
+
+    return await openDatabase(path, version: 1, onCreate: _createDB);
+  }
+
+  Future _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        code TEXT NOT NULL,
+        valuesJson TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<int> createProject(SavedProject project) async {
+    final db = await instance.database;
+    return await db.insert('projects', project.toMap());
+  }
+
+  Future<List<SavedProject>> getAllProjects() async {
+    final db = await instance.database;
+    final result = await db.query('projects', orderBy: 'id DESC');
+    return result.map((json) => SavedProject.fromMap(json)).toList();
+  }
+
+  Future<int> updateProject(SavedProject project) async {
+    final db = await instance.database;
+    return await db.update(
+      'projects',
+      project.toMap(),
+      where: 'id = ?',
+      whereArgs: [project.id],
+    );
+  }
+
+  Future<int> deleteProject(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'projects',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
 
 // --- MODELS ---
@@ -295,53 +388,10 @@ class PseudocodeController extends TextEditingController {
 
 // --- APP ---
 
-enum ViewMode { edit, preview, split }
+enum ViewMode { edit, preview }
 
-class FacturasApp extends StatefulWidget {
+class FacturasApp extends StatelessWidget {
   const FacturasApp({super.key});
-
-  @override
-  State<FacturasApp> createState() => _FacturasAppState();
-}
-
-class _FacturasAppState extends State<FacturasApp> {
-  String _pseudocode = """proyecto: Sistema de Facturación Pro
-
-tabs: Instalación
-  seccion: Materiales Básicos
-    item: Caja Embutida | opciones: 14, 16, 22, 24 | tipo: numerico
-    item: cable 2.5mm | opciones: Rojo, Verde, Blanco | tipo: numerico
-    item: térmico 25A | tipo: numerico
-
-  seccion: Cálculos de Prueba
-    // Caso 1: Solo variables internas (Crea dos cuadros de entrada)
-    item: variable + variable = Subtotal Local
-    
-    // Caso 2: Variable + Referencia a un ítem global
-    item: variable + térmico 25A = Total con Térmico
-    
-    // Caso 3: Variable + Total de una sección completa
-    item: variable * Materiales Básicos = Multiplicador Sección
-
-tabs: Avanzado
-  seccion: Desambiguación
-    // Caso 4: Referencia específica Sección(Ítem)
-    item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
-
-  late ProjectData _projectData;
-
-  @override
-  void initState() {
-    super.initState();
-    _projectData = PseudocodeParser.parse(_pseudocode);
-  }
-
-  void _updateProject(String newCode) {
-    setState(() {
-      _pseudocode = newCode;
-      _projectData = PseudocodeParser.parse(newCode);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -352,16 +402,376 @@ tabs: Avanzado
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF121212),
+        fontFamily: 'Inter',
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF81D4FA),
           surface: Color(0xFF1E1E1E),
         ),
       ),
-      home: MainSplitScreen(
-        initialCode: _pseudocode,
-        projectData: _projectData,
-        onChanged: _updateProject,
+      home: const ProjectListScreen(),
+    );
+  }
+}
+
+class ProjectListScreen extends StatefulWidget {
+  const ProjectListScreen({super.key});
+
+  @override
+  State<ProjectListScreen> createState() => _ProjectListScreenState();
+}
+
+class _ProjectListScreenState extends State<ProjectListScreen> {
+  List<SavedProject> _projects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshProjects();
+  }
+
+  Future<void> _refreshProjects() async {
+    setState(() => _isLoading = true);
+    final projects = await DatabaseHelper.instance.getAllProjects();
+    setState(() {
+      _projects = projects;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _addProject() async {
+    String projectName = "";
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text(
+          "Crear Nuevo Proyecto",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Container(
+          width: 300,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: "Nuevo Proyecto",
+              hintStyle: TextStyle(color: Colors.grey),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onChanged: (val) => projectName = val,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                  child: const Text("Cancelar", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, projectName),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF81D4FA),
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                  child: const Text("Crear", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+
+    if (result != null && result.trim().isNotEmpty) {
+      final defaultCode = """proyecto: $result
+tabs: Inicio
+  seccion: General
+    item: variable + variable = Resultado""";
+
+      final newProject = SavedProject(
+        name: result,
+        code: defaultCode,
+        valuesJson: "{}",
+      );
+      await DatabaseHelper.instance.createProject(newProject);
+      _refreshProjects();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              const Text(
+                "PROYECTOS",
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2.0,
+                ),
+              ),
+              const SizedBox(height: 40),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _projects.isEmpty
+                        ? const Center(child: Text("No hay proyectos aún", style: TextStyle(color: Colors.grey)))
+                        : ListView.builder(
+                            itemCount: _projects.length,
+                            itemBuilder: (context, index) {
+                              final project = _projects[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: InkWell(
+                                  onTap: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ProjectEditorWrapper(project: project),
+                                      ),
+                                    );
+                                    _refreshProjects();
+                                  },
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E1E),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.2),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        )
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF81D4FA).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(Icons.description, color: Color(0xFF81D4FA)),
+                                        ),
+                                        const SizedBox(width: 20),
+                                        Expanded(
+                                          child: Text(
+                                            project.name,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline, color: Color(0xFFFF5252)),
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                backgroundColor: const Color(0xFF1E1E1E),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                                                content: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const SizedBox(height: 10),
+                                                    Container(
+                                                      padding: const EdgeInsets.all(16),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFFF5252).withValues(alpha: 0.1),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 40),
+                                                    ),
+                                                    const SizedBox(height: 24),
+                                                    const Text(
+                                                      "¿Eliminar Proyecto?",
+                                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                                      textAlign: TextAlign.center,
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    Text(
+                                                      "Se eliminará permanentemente:\n\"${project.name}\"",
+                                                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                                      textAlign: TextAlign.center,
+                                                    ),
+                                                  ],
+                                                ),
+                                                actionsAlignment: MainAxisAlignment.center,
+                                                actionsPadding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+                                                actions: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: TextButton(
+                                                          onPressed: () => Navigator.pop(context, false),
+                                                          style: TextButton.styleFrom(
+                                                            backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                                            padding: const EdgeInsets.symmetric(vertical: 20),
+                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                                          ),
+                                                          child: const Text("Atrás", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: TextButton(
+                                                          onPressed: () => Navigator.pop(context, true),
+                                                          style: TextButton.styleFrom(
+                                                            backgroundColor: const Color(0xFFFF5252),
+                                                            padding: const EdgeInsets.symmetric(vertical: 20),
+                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                                          ),
+                                                          child: const Text("Eliminar", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (confirm == true) {
+                                              await DatabaseHelper.instance.deleteProject(project.id!);
+                                              _refreshProjects();
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addProject,
+        backgroundColor: const Color(0xFF81D4FA),
+        foregroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: const Icon(Icons.add, size: 32),
+      ),
+    );
+  }
+}
+
+class ProjectEditorWrapper extends StatefulWidget {
+  final SavedProject project;
+  const ProjectEditorWrapper({super.key, required this.project});
+
+  @override
+  State<ProjectEditorWrapper> createState() => _ProjectEditorWrapperState();
+}
+
+class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
+  late String _pseudocode;
+  late ProjectData _projectData;
+
+  @override
+  void initState() {
+    super.initState();
+    _pseudocode = widget.project.code;
+    _projectData = PseudocodeParser.parse(_pseudocode);
+    _applySavedValues();
+  }
+
+  void _applySavedValues() {
+    try {
+      Map<String, dynamic> values = jsonDecode(widget.project.valuesJson);
+      for (var tab in _projectData.tabs) {
+        for (var section in tab.sections) {
+          for (var item in section.items) {
+            String key = "${tab.title}_${section.title}_${item.title}";
+            if (values.containsKey(key)) {
+              if (item.inputType == 'FORMULA') {
+                List<dynamic> internal = values[key];
+                item.internalValues = internal.map((v) => (v as num).toDouble()).toList();
+              } else {
+                item.currentValue = (values[key] as num).toDouble();
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error applying saved values: $e");
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    Map<String, dynamic> values = {};
+    for (var tab in _projectData.tabs) {
+      for (var section in tab.sections) {
+        for (var item in section.items) {
+          String key = "${tab.title}_${section.title}_${item.title}";
+          if (item.inputType == 'FORMULA') {
+            values[key] = item.internalValues;
+          } else {
+            values[key] = item.currentValue;
+          }
+        }
+      }
+    }
+
+    final updatedProject = SavedProject(
+      id: widget.project.id,
+      name: _projectData.title,
+      code: _pseudocode,
+      valuesJson: jsonEncode(values),
+    );
+
+    await DatabaseHelper.instance.updateProject(updatedProject);
+  }
+
+  void _updateProject(String newCode) {
+    setState(() {
+      _pseudocode = newCode;
+      _projectData = PseudocodeParser.parse(newCode);
+      _saveChanges();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MainSplitScreen(
+      initialCode: _pseudocode,
+      projectData: _projectData,
+      onChanged: _updateProject,
     );
   }
 }
@@ -383,7 +793,7 @@ class MainSplitScreen extends StatefulWidget {
 }
 
 class _MainSplitScreenState extends State<MainSplitScreen> {
-  ViewMode _viewMode = ViewMode.split;
+  ViewMode _viewMode = ViewMode.edit;
 
   @override
   Widget build(BuildContext context) {
@@ -391,49 +801,23 @@ class _MainSplitScreenState extends State<MainSplitScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Editor Part
-            if (_viewMode == ViewMode.edit || _viewMode == ViewMode.split)
-              Expanded(
-                flex: _viewMode == ViewMode.edit ? 1 : 1,
-                child: EditorScreen(
-                  initialCode: widget.initialCode,
-                  onChanged: widget.onChanged,
-                  currentMode: _viewMode,
-                  onModeChanged: (mode) => setState(() => _viewMode = mode),
-                ),
-              ),
-
-            // Visual Divider only in Split Mode
-            if (_viewMode == ViewMode.split)
-              Container(
-                height: 4,
-                color: Colors.black,
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
+            // Single View Logic (Edit or Preview)
+            Expanded(
+              child: _viewMode == ViewMode.edit
+                  ? EditorScreen(
+                      initialCode: widget.initialCode,
+                      onChanged: widget.onChanged,
+                      currentMode: _viewMode,
+                      onModeChanged: (mode) => setState(() => _viewMode = mode),
+                    )
+                  : PreviewScreen(
+                      data: widget.projectData,
+                      isLive: true,
+                      onBack: () => setState(() => _viewMode = ViewMode.edit),
+                      showModeSelector: true,
+                      onModeChanged: (mode) => setState(() => _viewMode = mode),
                     ),
-                  ),
-                ),
-              ),
-
-            // Preview Part
-            if (_viewMode == ViewMode.preview || _viewMode == ViewMode.split)
-              Expanded(
-                flex: _viewMode == ViewMode.preview ? 1 : 1,
-                child: PreviewScreen(
-                  data: widget.projectData,
-                  isLive: true,
-                  onBack: _viewMode == ViewMode.preview
-                      ? () => setState(() => _viewMode = ViewMode.split)
-                      : null,
-                  showModeSelector: _viewMode == ViewMode.preview,
-                  onModeChanged: (mode) => setState(() => _viewMode = mode),
-                ),
-              ),
+            ),
           ],
         ),
       ),
@@ -656,11 +1040,6 @@ class _EditorScreenState extends State<EditorScreen> {
               title: 'Visualizar',
               isSelected: widget.currentMode == ViewMode.preview,
               onTap: () => widget.onModeChanged(ViewMode.preview),
-            ),
-            _ModeButton(
-              title: 'Editar + Visualizar',
-              isSelected: widget.currentMode == ViewMode.split,
-              onTap: () => widget.onModeChanged(ViewMode.split),
             ),
           ],
         ),
@@ -1101,11 +1480,6 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     title: 'Visualizar',
                     isSelected: true,
                     onTap: () => widget.onModeChanged?.call(ViewMode.preview),
-                  ),
-                  _ModeButton(
-                    title: 'Editar + Visualizar',
-                    isSelected: false,
-                    onTap: () => widget.onModeChanged?.call(ViewMode.split),
                   ),
                 ],
               ),
