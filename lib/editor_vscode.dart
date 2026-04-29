@@ -225,7 +225,7 @@ class PseudocodeController extends TextEditingController {
   }) {
     final List<TextSpan> children = [];
     final RegExp regExp = RegExp(
-      r'(:)([^"=:\n]+)$|(:)|(#.*)|("[^"\n]*")|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)|(^[^ \s/#][^:\n]*)|(^ {2}[^ \s/#][^:\n]*)|(^ {4,}[^ #\n][^:\n]*)',
+      r'(#.*)|("[^"\n]*")|(^[^ \s/#][^:\n]*)|(^ {2}[^ \s/#][^:\n]*)|(^ {4,}[^ #\n][^:\n]*)|(:)([^"=:\n]+)$|(:)|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)',
       multiLine: true,
       caseSensitive: false,
     );
@@ -247,44 +247,17 @@ class PseudocodeController extends TextEditingController {
 
         // The match itself
         if (match.group(1) != null) {
-          // Colon + List (Options)
-          children.add(
-            TextSpan(
-              text: match.group(1),
-              style: style?.copyWith(color: Colors.white),
-            ),
-          );
-          if (match.group(2) != null) {
-            children.add(
-              TextSpan(
-                text: match.group(2),
-                style: style?.copyWith(color: const Color(0xFFCE9178)), // Orange
-              ),
-            );
-          }
-        } else if (match.group(3) != null) {
-          // Single Colon (for formulas or structural endings)
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(color: Colors.white),
-            ),
-          );
-        } else if (match.group(4) != null) {
           // Comments #
           children.add(
             TextSpan(
               text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF6A9955),
-              ),
+              style: style?.copyWith(color: const Color(0xFF6A9955)),
             ),
           );
-        } else if (match.group(5) != null) {
-          // Strings "..." with nested highlighting ONLY for {variables}
+        } else if (match.group(2) != null) {
+          // Strings "..."
           String fullString = match.group(0)!;
           final List<TextSpan> stringChildren = [];
-
           final RegExp nestedRegExp = RegExp(r'\{[^{}]*\}');
           int lastNestedEnd = 0;
 
@@ -297,7 +270,6 @@ class PseudocodeController extends TextEditingController {
                   style: style?.copyWith(color: const Color(0xFFCE9178)),
                 ));
               }
-
               String block = nestedMatch.group(0)!;
               stringChildren.add(TextSpan(
                 text: "{",
@@ -319,66 +291,114 @@ class PseudocodeController extends TextEditingController {
                   fontWeight: FontWeight.bold,
                 ),
               ));
-
               lastNestedEnd = nestedMatch.end;
               return '';
             },
             onNonMatch: (String nm) => '',
           );
-
           if (lastNestedEnd < fullString.length) {
             stringChildren.add(TextSpan(
               text: fullString.substring(lastNestedEnd),
               style: style?.copyWith(color: const Color(0xFFCE9178)),
             ));
           }
-
           children.add(TextSpan(children: stringChildren));
+        } else if (match.group(3) != null) {
+          // Tabs (Indent 0) - Turquoise
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF00BFA5),
+              ),
+            ),
+          );
+        } else if (match.group(4) != null) {
+          // Sections (Indent 2) - Blue
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF569CD6),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          );
+        } else if (match.group(5) != null) {
+          // Items (Indent 4+) - Light Blue
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(color: const Color(0xFF9CDCFE)),
+            ),
+          );
         } else if (match.group(6) != null) {
+          // Colon + List
+          children.add(
+            TextSpan(
+              text: match.group(6),
+              style: style?.copyWith(color: Colors.white),
+            ),
+          );
+          if (match.group(7) != null) {
+            children.add(
+              TextSpan(
+                text: match.group(7),
+                style: style?.copyWith(color: const Color(0xFFCE9178)),
+              ),
+            );
+          }
+        } else if (match.group(8) != null) {
+          // Single Colon
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(color: Colors.white),
+            ),
+          );
+        } else if (match.group(9) != null) {
           // Keywords if/unless
           children.add(
             TextSpan(
               text: match.group(0),
               style: style?.copyWith(
-                color: const Color(0xFFC586C0), // Purple
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        } else if (match.group(7) != null) {
-          // Numbers
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFFB5CEA8), // Light Green (VS Code Numbers)
-              ),
-            ),
-          );
-        } else if (match.group(8) != null) {
-          // Parentheses ()
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFFFFD700), // Gold
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        } else if (match.group(9) != null) {
-          // Braces {}
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFFDAA520), // Dark Gold
+                color: const Color(0xFFC586C0),
                 fontWeight: FontWeight.bold,
               ),
             ),
           );
         } else if (match.group(10) != null) {
-          // White Symbols !@#$%^&*_-+=><?/.,';[]\
+          // Numbers
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(color: const Color(0xFFB5CEA8)),
+            ),
+          );
+        } else if (match.group(11) != null) {
+          // Parentheses
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFFFD700),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(12) != null) {
+          // Braces
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFDAA520),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(13) != null) {
+          // Symbols
           children.add(
             TextSpan(
               text: match.group(0),
@@ -388,47 +408,12 @@ class PseudocodeController extends TextEditingController {
               ),
             ),
           );
-        } else if (match.group(11) != null) {
-          // Identifiers (Variables, Properties)
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF9CDCFE), // Light Blue
-              ),
-            ),
-          );
-        } else if (match.group(12) != null) {
-          // Tabs (Indent 0)
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF569CD6), // Blue (VS Code class/def)
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          );
-        } else if (match.group(13) != null) {
-          // Sections (Indent 2)
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF569CD6), // Blue (VS Code class/def)
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          );
         } else if (match.group(14) != null) {
-          // Item Names (Indent 4+)
+          // Identifiers
           children.add(
             TextSpan(
               text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF9CDCFE), // Light Blue
-              ),
+              style: style?.copyWith(color: const Color(0xFF9CDCFE)),
             ),
           );
         }
