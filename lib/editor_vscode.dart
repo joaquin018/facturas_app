@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 
 // --- MODELS ---
 
@@ -1629,6 +1631,10 @@ class _ProjectCardState extends State<ProjectCard> {
                         widget.onChanged(val);
                       }
                     },
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(5),
+                    ],
                     style: TextStyle(
                       color: _isPlaceholder ? Colors.white38 : Colors.white,
                       fontSize: 18,
@@ -1771,6 +1777,10 @@ class _ProjectCardState extends State<ProjectCard> {
                         double.tryParse(val) ?? 0;
                     widget.onFormulaChanged();
                   },
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(5),
+                  ],
                 ),
               ),
             ],
