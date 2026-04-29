@@ -812,17 +812,44 @@ class _IndentGuidePainter extends CustomPainter {
       ..strokeWidth = 1;
 
     final lines = text.split('\n');
-
-    for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      final match = RegExp(r'^[ \t]*').firstMatch(lines[lineIndex]);
+    final List<int> actualLevels = lines.map((line) {
+      if (line.trim().isEmpty) return -1;
+      final match = RegExp(r'^[ \t]*').firstMatch(line);
       final leadingWhitespace = match?.group(0) ?? '';
       final columns = leadingWhitespace.runes.fold<int>(
         0,
         (total, rune) => total + (rune == 9 ? 2 : 1),
       );
-      final indentLevels = columns ~/ 2;
+      return columns ~/ 2;
+    }).toList();
 
-      if (indentLevels == 0) continue;
+    for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      int indentLevels = actualLevels[lineIndex];
+
+      if (indentLevels == -1) {
+        int prev = -1;
+        for (int j = lineIndex - 1; j >= 0; j--) {
+          if (actualLevels[j] != -1) {
+            prev = actualLevels[j];
+            break;
+          }
+        }
+        int next = -1;
+        for (int j = lineIndex + 1; j < lines.length; j++) {
+          if (actualLevels[j] != -1) {
+            next = actualLevels[j];
+            break;
+          }
+        }
+
+        if (prev != -1 && next != -1) {
+          indentLevels = prev < next ? prev : next;
+        } else {
+          indentLevels = 0;
+        }
+      }
+
+      if (indentLevels <= 0) continue;
 
       final top = lineIndex * lineHeight;
       final bottom = (top + lineHeight).clamp(0.0, size.height);
