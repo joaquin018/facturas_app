@@ -6,7 +6,7 @@ class ProjectData {
   String title;
   List<TabGroup> tabs;
 
-  ProjectData({this.title = "Nuevo Proyecto", List<TabGroup>? tabs})
+  ProjectData({this.title = "", List<TabGroup>? tabs})
     : tabs = tabs ?? [];
 }
 
@@ -60,8 +60,8 @@ enum ViewMode { edit, preview }
 // --- PARSER ---
 
 class PseudocodeParser {
-  static ProjectData parse(String text) {
-    ProjectData project = ProjectData();
+  static ProjectData parse(String text, {String? title}) {
+    ProjectData project = ProjectData(title: title ?? "Proyecto");
     List<String> lines = text.split('\n');
     TabGroup? currentTab;
     SectionData? currentSection;
@@ -72,12 +72,10 @@ class PseudocodeParser {
 
       String lowerLine = line.toLowerCase();
 
-      if (lowerLine.startsWith('proyecto:')) {
-        project.title = line.substring(9).trim();
-      } else if (lowerLine.startsWith('tabs:')) {
-        String title = line.substring(5).trim();
+      if (lowerLine.startsWith('tab:')) {
+        String tabTitle = line.substring(4).trim();
         currentTab = TabGroup(
-          title: title,
+          title: tabTitle,
           sections: [],
           isSelected: project.tabs.isEmpty, // Select first tab by default
         );
@@ -205,7 +203,7 @@ class PseudocodeController extends TextEditingController {
   }) {
     final List<TextSpan> children = [];
     final RegExp regExp = RegExp(
-      r'(proyecto:|seccion:|item:|tabs:)|(opciones:|tipo:)|(\|)|(//.*)|([\+\-\*/])',
+      r'(seccion:|item:|tab:)|(opciones:|tipo:)|(\|)|(//.*)|([\+\-\*/])',
       multiLine: true,
       caseSensitive: false,
     );
@@ -370,10 +368,9 @@ class _EditorScreenState extends State<EditorScreen> {
   int _cursorPosition = 0;
 
   final List<String> _keywords = [
-    'proyecto:',
     'seccion:',
     'item:',
-    'tabs:',
+    'tab:',
     'opciones:',
     'tipo:',
     'numerico',
@@ -443,7 +440,7 @@ class _EditorScreenState extends State<EditorScreen> {
         if (beforeCursor.isEmpty ||
             beforeCursor.endsWith('\n') ||
             beforeCursor.endsWith(' ')) {
-          _suggestions = ['proyecto:', 'seccion:', 'item:', 'tabs:'];
+          _suggestions = ['seccion:', 'item:', 'tab:'];
           _showAutocomplete();
         } else {
           _hideAutocomplete();

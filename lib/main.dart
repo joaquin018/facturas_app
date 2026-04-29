@@ -4,9 +4,7 @@ import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'editor_vscode.dart';
 
-const String exampleProjectCode = """proyecto: Ejemplos de uso
-
-tabs: Instalación
+const String exampleProjectCode = """tab: Instalación
   seccion: Materiales Básicos
     item: Caja Embutida | opciones: 14, 16, 22, 24 | tipo: numerico
     item: cable 2.5mm | opciones: Rojo, Verde, Blanco | tipo: numerico
@@ -22,7 +20,7 @@ tabs: Instalación
     // Caso 3: Variable + Total de una sección completa
     item: variable * Materiales Básicos = Multiplicador Sección
 
-tabs: Avanzado
+tab: Avanzado
   seccion: Desambiguación
     // Caso 4: Referencia específica Sección(Ítem)
     item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
@@ -263,8 +261,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     );
 
     if (result != null && result.trim().isNotEmpty) {
-      final defaultCode = """proyecto: $result
-tabs: Inicio
+      final defaultCode = """tab: Inicio
   seccion: General
     item: variable + variable = Resultado""";
 
@@ -552,7 +549,7 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
   void initState() {
     super.initState();
     _pseudocode = widget.project.code;
-    _projectData = PseudocodeParser.parse(_pseudocode);
+    _projectData = PseudocodeParser.parse(_pseudocode, title: widget.project.name);
     _applySavedValues();
   }
 
@@ -598,7 +595,7 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
 
     final updatedProject = SavedProject(
       id: widget.project.id,
-      name: _projectData.title,
+      name: widget.project.name,
       code: _pseudocode,
       valuesJson: jsonEncode(values),
     );
@@ -609,7 +606,7 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
   void _updateProject(String newCode) {
     setState(() {
       _pseudocode = newCode;
-      _projectData = PseudocodeParser.parse(newCode);
+      _projectData = PseudocodeParser.parse(newCode, title: widget.project.name);
       _saveChanges();
     });
   }
