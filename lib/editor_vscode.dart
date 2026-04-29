@@ -1786,6 +1786,7 @@ class _ProjectCardState extends State<ProjectCard> {
                   ],
                 ),
               ),
+              if (lowerOp != 'variable') const SizedBox(height: 12),
             ],
           ),
         );
