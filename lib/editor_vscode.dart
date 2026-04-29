@@ -6,8 +6,7 @@ class ProjectData {
   String title;
   List<TabGroup> tabs;
 
-  ProjectData({this.title = "", List<TabGroup>? tabs})
-    : tabs = tabs ?? [];
+  ProjectData({this.title = "", List<TabGroup>? tabs}) : tabs = tabs ?? [];
 }
 
 class TabGroup {
@@ -129,7 +128,7 @@ class PseudocodeParser {
         if (colonIndex != -1) {
           itemTitle = content.substring(0, colonIndex).trim();
           String logic = content.substring(colonIndex + 1).trim();
-          
+
           if (logic.startsWith('"') && logic.endsWith('"')) {
             type = 'TEXTO';
             textTemplate = logic.substring(1, logic.length - 1);
@@ -143,14 +142,15 @@ class PseudocodeParser {
               int start = int.tryParse(bounds[0].trim()) ?? 0;
               int end = int.tryParse(bounds[1].trim()) ?? 0;
               if (start <= end) {
-                options = [
-                  for (int i = start; i <= end; i++) i.toString(),
-                ];
+                options = [for (int i = start; i <= end; i++) i.toString()];
               }
             }
           } else {
-            options =
-                logic.split(',').map((e) => e.trim()).where((s) => s.isNotEmpty).toList();
+            options = logic
+                .split(',')
+                .map((e) => e.trim())
+                .where((s) => s.isNotEmpty)
+                .toList();
           }
         }
 
@@ -265,42 +265,55 @@ class PseudocodeController extends TextEditingController {
             nestedRegExp,
             onMatch: (Match nestedMatch) {
               if (nestedMatch.start > lastNestedEnd) {
-                stringChildren.add(TextSpan(
-                  text: fullString.substring(lastNestedEnd, nestedMatch.start),
-                  style: style?.copyWith(color: const Color(0xFFCE9178)),
-                ));
+                stringChildren.add(
+                  TextSpan(
+                    text: fullString.substring(
+                      lastNestedEnd,
+                      nestedMatch.start,
+                    ),
+                    style: style?.copyWith(color: const Color(0xFFCE9178)),
+                  ),
+                );
               }
               String block = nestedMatch.group(0)!;
-              stringChildren.add(TextSpan(
-                text: "{",
-                style: style?.copyWith(
-                  color: const Color(0xFFDAA520),
-                  fontWeight: FontWeight.bold,
+              stringChildren.add(
+                TextSpan(
+                  text: "{",
+                  style: style?.copyWith(
+                    color: const Color(0xFFDAA520),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ));
+              );
               if (block.length > 2) {
-                stringChildren.add(TextSpan(
-                  text: block.substring(1, block.length - 1),
-                  style: style?.copyWith(color: const Color(0xFF9CDCFE)),
-                ));
+                stringChildren.add(
+                  TextSpan(
+                    text: block.substring(1, block.length - 1),
+                    style: style?.copyWith(color: const Color(0xFF9CDCFE)),
+                  ),
+                );
               }
-              stringChildren.add(TextSpan(
-                text: "}",
-                style: style?.copyWith(
-                  color: const Color(0xFFDAA520),
-                  fontWeight: FontWeight.bold,
+              stringChildren.add(
+                TextSpan(
+                  text: "}",
+                  style: style?.copyWith(
+                    color: const Color(0xFFDAA520),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ));
+              );
               lastNestedEnd = nestedMatch.end;
               return '';
             },
             onNonMatch: (String nm) => '',
           );
           if (lastNestedEnd < fullString.length) {
-            stringChildren.add(TextSpan(
-              text: fullString.substring(lastNestedEnd),
-              style: style?.copyWith(color: const Color(0xFFCE9178)),
-            ));
+            stringChildren.add(
+              TextSpan(
+                text: fullString.substring(lastNestedEnd),
+                style: style?.copyWith(color: const Color(0xFFCE9178)),
+              ),
+            );
           }
           children.add(TextSpan(children: stringChildren));
         } else if (match.group(3) != null) {
@@ -308,9 +321,7 @@ class PseudocodeController extends TextEditingController {
           children.add(
             TextSpan(
               text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF00BFA5),
-              ),
+              style: style?.copyWith(color: const Color(0xFF00BFA5)),
             ),
           );
         } else if (match.group(4) != null) {
@@ -502,12 +513,20 @@ class _MainSplitScreenState extends State<MainSplitScreen> {
               _ModeButton(
                 title: 'Editar',
                 isSelected: _viewMode == ViewMode.edit,
-                onTap: () => setState(() => _viewMode = _viewMode == ViewMode.edit ? _viewMode : ViewMode.edit),
+                onTap: () => setState(
+                  () => _viewMode = _viewMode == ViewMode.edit
+                      ? _viewMode
+                      : ViewMode.edit,
+                ),
               ),
               _ModeButton(
                 title: 'Visualizar',
                 isSelected: _viewMode == ViewMode.preview,
-                onTap: () => setState(() => _viewMode = _viewMode == ViewMode.preview ? _viewMode : ViewMode.preview),
+                onTap: () => setState(
+                  () => _viewMode = _viewMode == ViewMode.preview
+                      ? _viewMode
+                      : ViewMode.preview,
+                ),
               ),
             ],
           ),
@@ -600,17 +619,11 @@ class _EditorScreenState extends State<EditorScreen> {
       }
 
       final beforeCursor = text.substring(0, _cursorPosition);
-      
+
       // Check for property suggestion (after a dot)
       final dotMatch = RegExp(r'([\wáéíóúñ]+)\.$').firstMatch(beforeCursor);
       if (dotMatch != null) {
-        _suggestions = [
-          'total',
-          'avg',
-          'count',
-          'max',
-          'min'
-        ];
+        _suggestions = ['total', 'avg', 'count', 'max', 'min'];
         _showAutocomplete(isProperty: true);
         return;
       }
@@ -619,18 +632,18 @@ class _EditorScreenState extends State<EditorScreen> {
 
       if (lastWordMatch != null) {
         final query = lastWordMatch.group(0)!.toLowerCase();
-        
-        List<Map<String, dynamic>> filtered = [
-          ..._keywords,
-          ...dynamicSuggestions,
-        ].where((s) {
-          final name = s['name'].toString().toLowerCase();
-          return name.startsWith(query) && name != query;
-        }).toList();
+
+        List<Map<String, dynamic>> filtered =
+            [..._keywords, ...dynamicSuggestions].where((s) {
+              final name = s['name'].toString().toLowerCase();
+              return name.startsWith(query) && name != query;
+            }).toList();
 
         if (filtered.isNotEmpty) {
           _suggestions = filtered.map((s) => s['name'].toString()).toList();
-          _showAutocomplete(types: filtered.map((s) => s['type'].toString()).toList());
+          _showAutocomplete(
+            types: filtered.map((s) => s['type'].toString()).toList(),
+          );
         } else {
           _hideAutocomplete();
         }
@@ -658,19 +671,19 @@ class _EditorScreenState extends State<EditorScreen> {
       textScaler: MediaQuery.of(context).textScaler,
     );
     textPainter.layout();
-    
+
     Offset caretOffset = textPainter.getOffsetForCaret(
       TextPosition(offset: _cursorPosition),
       Rect.zero,
     );
-    
+
     // Add editor padding (left: 10, top: 20) and move down by one line height (approx 21)
-    return Offset(caretOffset.dx + 10, caretOffset.dy + 20 + 22); 
+    return Offset(caretOffset.dx + 10, caretOffset.dy + 20 + 22);
   }
 
   void _showAutocomplete({List<String>? types, bool isProperty = false}) {
     _hideAutocomplete();
-    
+
     final cursorOffset = _getCursorOffset();
 
     _autocompleteOverlay = OverlayEntry(
@@ -693,8 +706,10 @@ class _EditorScreenState extends State<EditorScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(_suggestions.length, (index) {
                   final s = _suggestions[index];
-                  final type = isProperty ? 'property' : (types?[index] ?? 'variable');
-                  
+                  final type = isProperty
+                      ? 'property'
+                      : (types?[index] ?? 'variable');
+
                   IconData icon;
                   Color iconColor;
                   switch (type) {
@@ -722,7 +737,10 @@ class _EditorScreenState extends State<EditorScreen> {
                   return InkWell(
                     onTap: () => _applySuggestion(s, isProperty: isProperty),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
                           Icon(icon, size: 14, color: iconColor),
@@ -768,14 +786,15 @@ class _EditorScreenState extends State<EditorScreen> {
   void _applySuggestion(String suggestion, {bool isProperty = false}) {
     final text = _controller.text;
     final beforeCursor = text.substring(0, _cursorPosition);
-    
+
     String newText;
     int newCursorPos;
 
     if (isProperty) {
-      newText = text.substring(0, _cursorPosition) + 
-                suggestion + 
-                text.substring(_cursorPosition);
+      newText =
+          text.substring(0, _cursorPosition) +
+          suggestion +
+          text.substring(_cursorPosition);
       newCursorPos = _cursorPosition + suggestion.length;
     } else {
       final lastWordMatch = RegExp(r'([\wáéíóúñ]+)$').firstMatch(beforeCursor);
@@ -787,9 +806,10 @@ class _EditorScreenState extends State<EditorScreen> {
         );
         newCursorPos = lastWordMatch.start + suggestion.length;
       } else {
-        newText = text.substring(0, _cursorPosition) +
-                  suggestion +
-                  text.substring(_cursorPosition);
+        newText =
+            text.substring(0, _cursorPosition) +
+            suggestion +
+            text.substring(_cursorPosition);
         newCursorPos = _cursorPosition + suggestion.length;
       }
     }
@@ -1358,7 +1378,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
                               selectedIndex: item.options.isEmpty ? null : 0,
                               allGlobalNames: _getAllGlobalNames(),
                               showInput: item.inputType == 'NUMERICO',
-                              initialValue: item.currentValue.toStringAsFixed(0),
+                              initialValue: item.currentValue.toStringAsFixed(
+                                0,
+                              ),
                               onChanged: (val) {
                                 setState(() {
                                   item.currentValue = double.tryParse(val) ?? 0;
@@ -1506,14 +1528,15 @@ class ProjectCard extends StatefulWidget {
 class _ProjectCardState extends State<ProjectCard> {
   late TextEditingController _controller;
 
+  bool _isPlaceholder = true;
+
   @override
   void initState() {
     super.initState();
+    _isPlaceholder = widget.initialValue == '0';
     _controller = TextEditingController(text: widget.initialValue);
-    if (widget.initialValue == '0') {
-      _controller.selection = TextSelection.fromPosition(
-        const TextPosition(offset: 1),
-      );
+    if (_isPlaceholder) {
+      _controller.selection = const TextSelection.collapsed(offset: 1);
     }
     _controller.addListener(() {
       if (mounted) setState(() {});
@@ -1523,9 +1546,14 @@ class _ProjectCardState extends State<ProjectCard> {
   @override
   void didUpdateWidget(ProjectCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialValue != widget.initialValue &&
-        _controller.text != widget.initialValue) {
-      _controller.text = widget.initialValue;
+    if (oldWidget.initialValue != widget.initialValue) {
+      if (widget.initialValue == '0') {
+        _isPlaceholder = true;
+        if (_controller.text != '0') _controller.text = '0';
+      } else if (_controller.text != widget.initialValue) {
+        _isPlaceholder = false;
+        _controller.text = widget.initialValue;
+      }
     }
   }
 
@@ -1562,6 +1590,7 @@ class _ProjectCardState extends State<ProjectCard> {
                 Container(
                   width: 80,
                   height: 40,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(8),
@@ -1570,13 +1599,44 @@ class _ProjectCardState extends State<ProjectCard> {
                     controller: _controller,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    onChanged: widget.onChanged,
+                    textAlignVertical: TextAlignVertical.center,
+                    onTap: () {
+                      if (_isPlaceholder) {
+                        _controller.selection =
+                            const TextSelection.collapsed(offset: 1);
+                      }
+                    },
+                    onChanged: (val) {
+                      if (_isPlaceholder && val.length > 1) {
+                        String realVal =
+                            val.startsWith('0') ? val.substring(1) : val;
+                        _isPlaceholder = false;
+                        _controller.value = TextEditingValue(
+                          text: realVal,
+                          selection:
+                              TextSelection.collapsed(offset: realVal.length),
+                        );
+                        widget.onChanged(realVal);
+                      } else if (val.isEmpty) {
+                        _isPlaceholder = true;
+                        _controller.value = TextEditingValue(
+                          text: '0',
+                          selection: const TextSelection.collapsed(offset: 1),
+                        );
+                        widget.onChanged('0');
+                      } else {
+                        _isPlaceholder = val == '0' && val.length == 1;
+                        widget.onChanged(val);
+                      }
+                    },
                     style: TextStyle(
-                      color: _controller.text == '0' ? Colors.white38 : Colors.white,
+                      color: _isPlaceholder ? Colors.white38 : Colors.white,
+                      fontSize: 18,
                     ),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
+                      isDense: true,
                     ),
                   ),
                 ),
@@ -1677,24 +1737,26 @@ class _ProjectCardState extends State<ProjectCard> {
                   ),
                 ),
                 child: TextField(
-                  controller: TextEditingController(
-                    text:
-                        widget.item.variableValues[lowerOp] == null ||
-                                widget.item.variableValues[lowerOp] == 0
-                            ? ''
-                            : widget.item.variableValues[lowerOp]!
-                                .toStringAsFixed(0),
-                  )..selection = TextSelection.fromPosition(
-                    TextPosition(
-                      offset:
-                          widget.item.variableValues[lowerOp] == null ||
+                  controller:
+                      TextEditingController(
+                          text:
+                              widget.item.variableValues[lowerOp] == null ||
                                   widget.item.variableValues[lowerOp] == 0
-                              ? 0
+                              ? ''
                               : widget.item.variableValues[lowerOp]!
-                                  .toStringAsFixed(0)
-                                  .length,
-                    ),
-                  ),
+                                    .toStringAsFixed(0),
+                        )
+                        ..selection = TextSelection.fromPosition(
+                          TextPosition(
+                            offset:
+                                widget.item.variableValues[lowerOp] == null ||
+                                    widget.item.variableValues[lowerOp] == 0
+                                ? 0
+                                : widget.item.variableValues[lowerOp]!
+                                      .toStringAsFixed(0)
+                                      .length,
+                          ),
+                        ),
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
