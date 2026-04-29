@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
 
-const String exampleProjectCode = """proyecto: Sistema de Facturación Pro
+const String exampleProjectCode = """proyecto: Ejemplos de uso
 
 tabs: Instalación
   seccion: Materiales Básicos
@@ -26,7 +26,6 @@ tabs: Avanzado
     // Caso 4: Referencia específica Sección(Ítem)
     item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
 
-
 void main() {
   runApp(const FacturasApp());
 }
@@ -39,15 +38,15 @@ class SavedProject {
   final String code;
   final String valuesJson;
 
-  SavedProject({this.id, required this.name, required this.code, required this.valuesJson});
+  SavedProject({
+    this.id,
+    required this.name,
+    required this.code,
+    required this.valuesJson,
+  });
 
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'code': code,
-      'valuesJson': valuesJson,
-    };
+    return {'id': id, 'name': name, 'code': code, 'valuesJson': valuesJson};
   }
 
   factory SavedProject.fromMap(Map<String, dynamic> map) {
@@ -113,11 +112,7 @@ class DatabaseHelper {
 
   Future<int> deleteProject(int id) async {
     final db = await instance.database;
-    return await db.delete(
-      'projects',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('projects', where: 'id = ?', whereArgs: [id]);
   }
 }
 
@@ -165,8 +160,8 @@ class ItemData {
     this.currentValue = 0,
     this.formula,
     List<double>? internalValues,
-  })  : options = options ?? [],
-        internalValues = internalValues ?? [];
+  }) : options = options ?? [],
+       internalValues = internalValues ?? [];
 }
 
 class TabData {
@@ -237,17 +232,21 @@ class PseudocodeParser {
         }
 
         String? formula;
-        if (title.contains('=') && (title.contains('+') || title.contains('-') || title.contains('*') || title.contains('/'))) {
+        if (title.contains('=') &&
+            (title.contains('+') ||
+                title.contains('-') ||
+                title.contains('*') ||
+                title.contains('/'))) {
           formula = title;
           type = 'FORMULA';
           // Count 'variable' occurrences to initialize internalValues
           int varCount = RegExp(r'\bvariable\b').allMatches(formula).length;
           List<double> internalValues = List.filled(varCount, 0.0);
-          
+
           currentSection.items.add(
             ItemData(
-              title: title, 
-              options: options, 
+              title: title,
+              options: options,
               inputType: type,
               formula: formula,
               internalValues: internalValues,
@@ -457,11 +456,11 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
   Future<void> _refreshProjects() async {
     setState(() => _isLoading = true);
     var projects = await DatabaseHelper.instance.getAllProjects();
-    
+
     if (projects.isEmpty) {
       // Seed with v5 example project
       final exampleProject = SavedProject(
-        name: "Sistema de Facturación Pro",
+        name: "Ejemplos de uso",
         code: exampleProjectCode,
         valuesJson: "{}",
       );
@@ -500,7 +499,10 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
               hintText: "Nuevo Proyecto",
               hintStyle: TextStyle(color: Colors.grey),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
             onChanged: (val) => projectName = val,
           ),
@@ -516,9 +518,17 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.white.withValues(alpha: 0.05),
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
-                  child: const Text("Cancelar", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "Cancelar",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -528,9 +538,17 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                   style: TextButton.styleFrom(
                     backgroundColor: const Color(0xFF81D4FA),
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
-                  child: const Text("Crear", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "Crear",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -578,138 +596,225 @@ tabs: Inicio
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _projects.isEmpty
-                        ? const Center(child: Text("No hay proyectos aún", style: TextStyle(color: Colors.grey)))
-                        : ListView.builder(
-                            itemCount: _projects.length,
-                            itemBuilder: (context, index) {
-                              final project = _projects[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: InkWell(
-                                  onTap: () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ProjectEditorWrapper(project: project),
-                                      ),
-                                    );
-                                    _refreshProjects();
-                                  },
+                    ? const Center(
+                        child: Text(
+                          "No hay proyectos aún",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _projects.length,
+                        itemBuilder: (context, index) {
+                          final project = _projects[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: InkWell(
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        ProjectEditorWrapper(project: project),
+                                  ),
+                                );
+                                _refreshProjects();
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E1E1E),
                                   borderRadius: BorderRadius.circular(20),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(24),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1E1E1E),
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.2),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        )
-                                      ],
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF81D4FA).withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: const Icon(Icons.description, color: Color(0xFF81D4FA)),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFF81D4FA,
+                                        ).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.description,
+                                        color: Color(0xFF81D4FA),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 20),
+                                    Expanded(
+                                      child: Text(
+                                        project.name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        const SizedBox(width: 20),
-                                        Expanded(
-                                          child: Text(
-                                            project.name,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Color(0xFFFF5252),
+                                      ),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            backgroundColor: const Color(
+                                              0xFF1E1E1E,
                                             ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: Color(0xFFFF5252)),
-                                          onPressed: () async {
-                                            final confirm = await showDialog<bool>(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                backgroundColor: const Color(0xFF1E1E1E),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                                content: Column(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    const SizedBox(height: 10),
-                                                    Container(
-                                                      padding: const EdgeInsets.all(16),
-                                                      decoration: BoxDecoration(
-                                                        color: const Color(0xFFFF5252).withValues(alpha: 0.1),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                      child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 40),
-                                                    ),
-                                                    const SizedBox(height: 24),
-                                                    const Text(
-                                                      "¿Eliminar Proyecto?",
-                                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                                                      textAlign: TextAlign.center,
-                                                    ),
-                                                    const SizedBox(height: 12),
-                                                    Text(
-                                                      "Se eliminará permanentemente:\n\"${project.name}\"",
-                                                      style: const TextStyle(color: Colors.grey, fontSize: 14),
-                                                      textAlign: TextAlign.center,
-                                                    ),
-                                                  ],
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                            ),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const SizedBox(height: 10),
+                                                Container(
+                                                  padding: const EdgeInsets.all(
+                                                    16,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFFF5252,
+                                                    ).withValues(alpha: 0.1),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    color: Color(0xFFFF5252),
+                                                    size: 40,
+                                                  ),
                                                 ),
-                                                actionsAlignment: MainAxisAlignment.center,
-                                                actionsPadding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
-                                                actions: [
-                                                  Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: TextButton(
-                                                          onPressed: () => Navigator.pop(context, false),
-                                                          style: TextButton.styleFrom(
-                                                            backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                                            padding: const EdgeInsets.symmetric(vertical: 20),
-                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                                const SizedBox(height: 24),
+                                                const Text(
+                                                  "¿Eliminar Proyecto?",
+                                                  style: TextStyle(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  "Se eliminará permanentemente:\n\"${project.name}\"",
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 14,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ],
+                                            ),
+                                            actionsAlignment:
+                                                MainAxisAlignment.center,
+                                            actionsPadding:
+                                                const EdgeInsets.only(
+                                                  bottom: 24,
+                                                  left: 16,
+                                                  right: 16,
+                                                ),
+                                            actions: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            false,
                                                           ),
-                                                          child: const Text("Atrás", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                                      style: TextButton.styleFrom(
+                                                        backgroundColor: Colors
+                                                            .white
+                                                            .withValues(
+                                                              alpha: 0.05,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 20,
+                                                            ),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                24,
+                                                              ),
                                                         ),
                                                       ),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: TextButton(
-                                                          onPressed: () => Navigator.pop(context, true),
-                                                          style: TextButton.styleFrom(
-                                                            backgroundColor: const Color(0xFFFF5252),
-                                                            padding: const EdgeInsets.symmetric(vertical: 20),
-                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                                                          ),
-                                                          child: const Text("Eliminar", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                                      child: const Text(
+                                                        "Atrás",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
                                                         ),
                                                       ),
-                                                    ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            true,
+                                                          ),
+                                                      style: TextButton.styleFrom(
+                                                        backgroundColor:
+                                                            const Color(
+                                                              0xFFFF5252,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 20,
+                                                            ),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                24,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      child: const Text(
+                                                        "Eliminar",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               ),
-                                            );
+                                            ],
+                                          ),
+                                        );
 
-                                            if (confirm == true) {
-                                              await DatabaseHelper.instance.deleteProject(project.id!);
-                                              _refreshProjects();
-                                            }
-                                          },
-                                        ),
-                                      ],
+                                        if (confirm == true) {
+                                          await DatabaseHelper.instance
+                                              .deleteProject(project.id!);
+                                          _refreshProjects();
+                                        }
+                                      },
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -756,7 +861,9 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
             if (values.containsKey(key)) {
               if (item.inputType == 'FORMULA') {
                 List<dynamic> internal = values[key];
-                item.internalValues = internal.map((v) => (v as num).toDouble()).toList();
+                item.internalValues = internal
+                    .map((v) => (v as num).toDouble())
+                    .toList();
               } else {
                 item.currentValue = (values[key] as num).toDouble();
               }
@@ -1393,7 +1500,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   double _evaluateItemFormula(ItemData item, Map<String, double> knownTotals) {
     String formulaText = item.formula!.split('=')[0].trim();
-    List<String> operators = RegExp(r'[\+\-\*/]').allMatches(formulaText).map((m) => m.group(0)!).toList();
+    List<String> operators = RegExp(
+      r'[\+\-\*/]',
+    ).allMatches(formulaText).map((m) => m.group(0)!).toList();
     List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
 
     int varIndex = 0;
@@ -1420,16 +1529,23 @@ class _PreviewScreenState extends State<PreviewScreen> {
         result = val;
       } else {
         String operator = operators[i - 1];
-        if (operator == '+') result += val;
-        else if (operator == '-') result -= val;
-        else if (operator == '*') result *= val;
-        else if (operator == '/') result = val != 0 ? result / val : 0;
+        if (operator == '+')
+          result += val;
+        else if (operator == '-')
+          result -= val;
+        else if (operator == '*')
+          result *= val;
+        else if (operator == '/')
+          result = val != 0 ? result / val : 0;
       }
     }
     return result;
   }
 
-  double _resolveGlobalIdentifier(String name, Map<String, double> knownTotals) {
+  double _resolveGlobalIdentifier(
+    String name,
+    Map<String, double> knownTotals,
+  ) {
     if (knownTotals.containsKey(name)) return knownTotals[name]!;
     for (var tab in widget.data.tabs) {
       for (var section in tab.sections) {
@@ -1579,7 +1695,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
                       child: ProjectCard(
                         title: item.title,
                         item: item,
-                        onFormulaChanged: () => setState(() => _calculateTotals()),
+                        onFormulaChanged: () =>
+                            setState(() => _calculateTotals()),
                         chips: item.options.isEmpty ? null : item.options,
                         selectedIndex: item.options.isEmpty ? null : 0,
                         showInput: item.inputType == 'NUMERICO',
@@ -1799,7 +1916,8 @@ class _ProjectCardState extends State<ProjectCard> {
               ),
             ),
           ],
-          if (widget.item.inputType == 'FORMULA' && widget.item.formula != null) ...[
+          if (widget.item.inputType == 'FORMULA' &&
+              widget.item.formula != null) ...[
             const SizedBox(height: 16),
             _buildFormulaRow(),
           ],
@@ -1811,7 +1929,9 @@ class _ProjectCardState extends State<ProjectCard> {
   Widget _buildFormulaRow() {
     String formulaText = widget.item.formula!.split('=')[0];
     String resultLabel = widget.item.formula!.split('=').last;
-    List<String> operators = RegExp(r'[\+\-\*/]').allMatches(formulaText).map((m) => m.group(0)!).toList();
+    List<String> operators = RegExp(
+      r'[\+\-\*/]',
+    ).allMatches(formulaText).map((m) => m.group(0)!).toList();
     List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
 
     List<Widget> children = [];
@@ -1828,16 +1948,22 @@ class _ProjectCardState extends State<ProjectCard> {
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF81D4FA).withValues(alpha: 0.3)),
+              border: Border.all(
+                color: const Color(0xFF81D4FA).withValues(alpha: 0.3),
+              ),
             ),
             child: TextField(
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+              ),
               onChanged: (val) {
                 setState(() {
-                  widget.item.internalValues[currentIdx] = double.tryParse(val) ?? 0;
+                  widget.item.internalValues[currentIdx] =
+                      double.tryParse(val) ?? 0;
                   widget.onFormulaChanged();
                 });
               },
@@ -1846,10 +1972,7 @@ class _ProjectCardState extends State<ProjectCard> {
         );
       } else {
         children.add(
-          Text(
-            op,
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-          ),
+          Text(op, style: const TextStyle(color: Colors.grey, fontSize: 14)),
         );
       }
 
@@ -1859,7 +1982,10 @@ class _ProjectCardState extends State<ProjectCard> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               operators[i],
-              style: const TextStyle(color: Color(0xFF81D4FA), fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Color(0xFF81D4FA),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         );
