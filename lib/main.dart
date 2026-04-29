@@ -4,26 +4,42 @@ import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'editor_vscode.dart';
 
-const String exampleProjectCode = """tab: Instalación
-  seccion: Materiales Básicos
-    item: Caja Embutida | opciones: 14, 16, 22, 24 | tipo: numerico
-    item: cable 2.5mm | opciones: Rojo, Verde, Blanco | tipo: numerico
-    item: térmico 25A | tipo: numerico
+const String exampleProjectCode = """Configuración General:
+  Variables Globales:
+    IVA: 21
+    Retención: 15
+    Mensaje: "Presupuesto válido por 30 días"
 
-  seccion: Cálculos de Prueba
-    // Caso 1: Solo variables internas (Crea dos cuadros de entrada)
-    item: variable + variable = Subtotal Local
-    
-    // Caso 2: Variable + Referencia a un ítem global
-    item: variable + térmico 25A = Total con Térmico
-    
-    // Caso 3: Variable + Total de una sección completa
-    item: variable * Materiales Básicos = Multiplicador Sección
+Instalación Eléctrica:
+  Materiales:
+    Caja Embutida: 1..20
+    Cable 2.5mm: Rojo, Verde, Blanco
+    Térmico 25A: 1..5
 
-tab: Avanzado
-  seccion: Desambiguación
-    // Caso 4: Referencia específica Sección(Ítem)
-    item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
+  Mano de Obra:
+    Horas Oficial: variable
+    Horas Ayudante: variable
+    Precio Hora: 25
+    Subtotal MO: (Horas Oficial + Horas Ayudante) * Precio Hora = Total
+
+  Cálculos y Totales:
+    Materiales Totales: Materiales.total = Suma Materiales
+    Mano de Obra Total: Mano de Obra.total = Suma MO
+    
+    # Ejemplo de Condicional 'if' (Ruby style)
+    Descuento Especial: Suma Materiales * 0.10 if Suma Materiales > 500 = Descuento
+    
+    Subtotal Neto: Suma Materiales + Suma MO - Descuento = Neto
+    IVA Calculado: Neto * (IVA / 100) = IVA
+    
+    # Ejemplo de Propiedades de Sección (Python/Ruby style)
+    Estadística: "Has usado {Materiales.count} tipos de materiales con un promedio de {Materiales.avg}"
+
+Finalización:
+  Resumen:
+    Total Final: Neto + IVA = Total
+    Aviso: "El total a pagar es {Total}. {Mensaje}"
+    Extra: 50 unless Total > 2000 = Cargo Envío""";
 
 void main() {
   runApp(const FacturasApp());
@@ -261,9 +277,9 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     );
 
     if (result != null && result.trim().isNotEmpty) {
-      final defaultCode = """tab: Inicio
-  seccion: General
-    item: variable + variable = Resultado""";
+      final defaultCode = """Inicio:
+  General:
+    Resultado: variable + variable = Total""";
 
       final newProject = SavedProject(
         name: result,
@@ -562,10 +578,12 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
             String key = "${tab.title}_${section.title}_${item.title}";
             if (values.containsKey(key)) {
               if (item.inputType == 'FORMULA') {
-                List<dynamic> internal = values[key];
-                item.internalValues = internal
-                    .map((v) => (v as num).toDouble())
-                    .toList();
+                Map<String, dynamic> internal = values[key] is Map
+                    ? Map<String, dynamic>.from(values[key])
+                    : {};
+                item.variableValues = internal.map(
+                  (k, v) => MapEntry(k, (v as num).toDouble()),
+                );
               } else {
                 item.currentValue = (values[key] as num).toDouble();
               }
@@ -585,7 +603,7 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
         for (var item in section.items) {
           String key = "${tab.title}_${section.title}_${item.title}";
           if (item.inputType == 'FORMULA') {
-            values[key] = item.internalValues;
+            values[key] = item.variableValues;
           } else {
             values[key] = item.currentValue;
           }

@@ -32,20 +32,22 @@ class SectionData {
 class ItemData {
   String title;
   List<String> options;
-  String inputType; // 'NUMERICO', 'TEXTO', 'NADA', 'FORMULA'
+  String inputType; // 'NUMERICO', 'FORMULA', 'TEXTO'
   double currentValue;
   String? formula;
-  List<double> internalValues;
+  String? textTemplate;
+  Map<String, double> variableValues;
 
   ItemData({
     required this.title,
     List<String>? options,
-    this.inputType = 'NADA',
+    this.inputType = 'NUMERICO',
     this.currentValue = 0,
     this.formula,
-    List<double>? internalValues,
+    this.textTemplate,
+    Map<String, double>? variableValues,
   }) : options = options ?? [],
-       internalValues = internalValues ?? [];
+       variableValues = variableValues ?? {};
 }
 
 class TabData {
@@ -67,80 +69,100 @@ class PseudocodeParser {
     SectionData? currentSection;
 
     for (String line in lines) {
-      line = line.trim();
-      if (line.isEmpty) continue;
+      if (line.trim().isEmpty) continue;
+      if (line.trim().startsWith('#')) continue;
 
-      String lowerLine = line.toLowerCase();
+      // Count leading spaces for Python-style indentation
+      int indent = 0;
+      for (int i = 0; i < line.length; i++) {
+        if (line[i] == ' ') {
+          indent++;
+        } else {
+          break;
+        }
+      }
 
-      if (lowerLine.startsWith('tab:')) {
-        String tabTitle = line.substring(4).trim();
+      String content = line.trim();
+
+      if (indent == 0) {
+        // Tab Level
+        String title = content.endsWith(':')
+            ? content.substring(0, content.length - 1).trim()
+            : content;
         currentTab = TabGroup(
-          title: tabTitle,
+          title: title,
           sections: [],
-          isSelected: project.tabs.isEmpty, // Select first tab by default
+          isSelected: project.tabs.isEmpty,
         );
         project.tabs.add(currentTab);
-        currentSection = null; // Reset section when tab changes
-      } else if (lowerLine.startsWith('seccion:')) {
+        currentSection = null;
+      } else if (indent == 2) {
+        // Section Level
         if (currentTab == null) {
-          // Fallback if no tab is declared yet
           currentTab = TabGroup(title: 'General', sections: []);
           project.tabs.add(currentTab);
         }
-        currentSection = SectionData(
-          title: line.substring(8).trim(),
-          items: [],
-        );
+        String title = content.endsWith(':')
+            ? content.substring(0, content.length - 1).trim()
+            : content;
+        currentSection = SectionData(title: title, items: []);
         currentTab.sections.add(currentSection);
-      } else if (lowerLine.startsWith('item:')) {
-        if (currentSection == null) continue;
+      } else {
+        // Item Level (indent 4+)
+        if (currentSection == null) {
+          if (currentTab == null) {
+            currentTab = TabGroup(title: 'General', sections: []);
+            project.tabs.add(currentTab);
+          }
+          currentSection = SectionData(title: 'Ítems', items: []);
+          currentTab.sections.add(currentSection);
+        }
 
-        // Split by pipe |
-        List<String> parts = line.substring(5).split('|');
-        String title = parts[0].trim();
+        // Split by the FIRST colon
+        int colonIndex = content.indexOf(':');
+        String itemTitle = content;
+        String? formula;
+        String? textTemplate;
         List<String> options = [];
-        String type = 'NADA';
+        String type = 'NUMERICO';
 
-        for (var part in parts) {
-          String lowerPart = part.toLowerCase();
-          if (lowerPart.contains('opciones:')) {
-            options = part
-                .split(':')
-                .last
-                .split(',')
-                .map((e) => e.trim())
-                .toList();
-          } else if (lowerPart.contains('tipo:')) {
-            type = part.split(':').last.trim().toUpperCase();
+        if (colonIndex != -1) {
+          itemTitle = content.substring(0, colonIndex).trim();
+          String logic = content.substring(colonIndex + 1).trim();
+          
+          if (logic.startsWith('"') && logic.endsWith('"')) {
+            type = 'TEXTO';
+            textTemplate = logic.substring(1, logic.length - 1);
+          } else if (logic.contains('=')) {
+            formula = logic;
+            type = 'FORMULA';
+          } else if (logic.contains('..')) {
+            type = 'NUMERICO';
+            var bounds = logic.split('..');
+            if (bounds.length == 2) {
+              int start = int.tryParse(bounds[0].trim()) ?? 0;
+              int end = int.tryParse(bounds[1].trim()) ?? 0;
+              if (start <= end) {
+                options = [
+                  for (int i = start; i <= end; i++) i.toString(),
+                ];
+              }
+            }
+          } else {
+            options =
+                logic.split(',').map((e) => e.trim()).where((s) => s.isNotEmpty).toList();
           }
         }
 
-        String? formula;
-        if (title.contains('=') &&
-            (title.contains('+') ||
-                title.contains('-') ||
-                title.contains('*') ||
-                title.contains('/'))) {
-          formula = title;
-          type = 'FORMULA';
-          // Count 'variable' occurrences to initialize internalValues
-          int varCount = RegExp(r'\bvariable\b').allMatches(formula).length;
-          List<double> internalValues = List.filled(varCount, 0.0);
-
-          currentSection.items.add(
-            ItemData(
-              title: title,
-              options: options,
-              inputType: type,
-              formula: formula,
-              internalValues: internalValues,
-            ),
-          );
-        } else {
-          currentSection.items.add(
-            ItemData(title: title, options: options, inputType: type),
-          );
-        }
+        currentSection.items.add(
+          ItemData(
+            title: itemTitle,
+            options: options,
+            inputType: type,
+            formula: formula,
+            textTemplate: textTemplate,
+          ),
+        );
       }
     }
 
@@ -203,7 +225,7 @@ class PseudocodeController extends TextEditingController {
   }) {
     final List<TextSpan> children = [];
     final RegExp regExp = RegExp(
-      r'(seccion:|item:|tab:)|(opciones:|tipo:)|(\|)|(//.*)|([\+\-\*/])',
+      r'(:)([^"=:\n]+)$|(:)|(#.*)|("[^"\n]*")|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)|(^[^ \s/][^:\n]*)|(^ {2}[^ \s/][^:\n]*)|(^ {4,}[^:\n]*)',
       multiLine: true,
       caseSensitive: false,
     );
@@ -225,34 +247,31 @@ class PseudocodeController extends TextEditingController {
 
         // The match itself
         if (match.group(1) != null) {
-          // Main Keywords (proyecto, seccion, etc)
+          // Colon + List (Options)
           children.add(
             TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(
-                color: const Color(0xFF569CD6),
-                fontWeight: FontWeight.bold,
+              text: match.group(1),
+              style: style?.copyWith(color: Colors.white),
+            ),
+          );
+          if (match.group(2) != null) {
+            children.add(
+              TextSpan(
+                text: match.group(2),
+                style: style?.copyWith(color: const Color(0xFFCE9178)), // Orange
               ),
-            ),
-          );
-        } else if (match.group(2) != null) {
-          // Sub Keywords (opciones, tipo)
-          children.add(
-            TextSpan(
-              text: match.group(0),
-              style: style?.copyWith(color: const Color(0xFF9CDCFE)),
-            ),
-          );
+            );
+          }
         } else if (match.group(3) != null) {
-          // Separator |
+          // Single Colon (for formulas or structural endings)
           children.add(
             TextSpan(
               text: match.group(0),
-              style: style?.copyWith(color: Colors.white24),
+              style: style?.copyWith(color: Colors.white),
             ),
           );
         } else if (match.group(4) != null) {
-          // Comments //
+          // Comments #
           children.add(
             TextSpan(
               text: match.group(0),
@@ -263,13 +282,153 @@ class PseudocodeController extends TextEditingController {
             ),
           );
         } else if (match.group(5) != null) {
-          // Math Operators + - * /
+          // Strings "..." with nested highlighting ONLY for {variables}
+          String fullString = match.group(0)!;
+          final List<TextSpan> stringChildren = [];
+
+          final RegExp nestedRegExp = RegExp(r'\{[^{}]*\}');
+          int lastNestedEnd = 0;
+
+          fullString.splitMapJoin(
+            nestedRegExp,
+            onMatch: (Match nestedMatch) {
+              if (nestedMatch.start > lastNestedEnd) {
+                stringChildren.add(TextSpan(
+                  text: fullString.substring(lastNestedEnd, nestedMatch.start),
+                  style: style?.copyWith(color: const Color(0xFFCE9178)),
+                ));
+              }
+
+              String block = nestedMatch.group(0)!;
+              stringChildren.add(TextSpan(
+                text: "{",
+                style: style?.copyWith(
+                  color: const Color(0xFFDAA520),
+                  fontWeight: FontWeight.bold,
+                ),
+              ));
+              if (block.length > 2) {
+                stringChildren.add(TextSpan(
+                  text: block.substring(1, block.length - 1),
+                  style: style?.copyWith(color: const Color(0xFF9CDCFE)),
+                ));
+              }
+              stringChildren.add(TextSpan(
+                text: "}",
+                style: style?.copyWith(
+                  color: const Color(0xFFDAA520),
+                  fontWeight: FontWeight.bold,
+                ),
+              ));
+
+              lastNestedEnd = nestedMatch.end;
+              return '';
+            },
+            onNonMatch: (String nm) => '',
+          );
+
+          if (lastNestedEnd < fullString.length) {
+            stringChildren.add(TextSpan(
+              text: fullString.substring(lastNestedEnd),
+              style: style?.copyWith(color: const Color(0xFFCE9178)),
+            ));
+          }
+
+          children.add(TextSpan(children: stringChildren));
+        } else if (match.group(6) != null) {
+          // Keywords if/unless
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFC586C0), // Purple
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(7) != null) {
+          // Numbers
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFB5CEA8), // Light Green (VS Code Numbers)
+              ),
+            ),
+          );
+        } else if (match.group(8) != null) {
+          // Parentheses ()
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFFFD700), // Gold
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(9) != null) {
+          // Braces {}
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFFDAA520), // Dark Gold
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(10) != null) {
+          // White Symbols !@#$%^&*_-+=><?/.,';[]\
           children.add(
             TextSpan(
               text: match.group(0),
               style: style?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        } else if (match.group(11) != null) {
+          // Identifiers (Variables, Properties)
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF9CDCFE), // Light Blue
+              ),
+            ),
+          );
+        } else if (match.group(12) != null) {
+          // Tabs (Indent 0)
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF569CD6), // Blue (VS Code class/def)
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          );
+        } else if (match.group(13) != null) {
+          // Sections (Indent 2)
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF569CD6), // Blue (VS Code class/def)
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          );
+        } else if (match.group(14) != null) {
+          // Item Names (Indent 4+)
+          children.add(
+            TextSpan(
+              text: match.group(0),
+              style: style?.copyWith(
+                color: const Color(0xFF9CDCFE), // Light Blue
               ),
             ),
           );
@@ -368,13 +527,7 @@ class _EditorScreenState extends State<EditorScreen> {
   int _cursorPosition = 0;
 
   final List<String> _keywords = [
-    'seccion:',
-    'item:',
-    'tab:',
-    'opciones:',
-    'tipo:',
-    'numerico',
-    'texto',
+    'variable',
   ];
 
   @override
@@ -863,28 +1016,47 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   double _evaluateItemFormula(ItemData item, Map<String, double> knownTotals) {
-    String formulaText = item.formula!.split('=')[0].trim();
+    String rawFormula = item.formula!.split('=')[0].trim();
+    String expression = rawFormula;
+    bool conditionMet = true;
+
+    // Ruby style 'if' / 'unless'
+    if (rawFormula.contains(' if ')) {
+      var parts = rawFormula.split(' if ');
+      expression = parts[0].trim();
+      conditionMet = _evaluateCondition(parts[1].trim(), knownTotals);
+    } else if (rawFormula.contains(' unless ')) {
+      var parts = rawFormula.split(' unless ');
+      expression = parts[0].trim();
+      conditionMet = !_evaluateCondition(parts[1].trim(), knownTotals);
+    }
+
+    if (!conditionMet) return 0;
+
     List<String> operators = RegExp(
       r'[\+\-\*/]',
-    ).allMatches(formulaText).map((m) => m.group(0)!).toList();
-    List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
+    ).allMatches(expression).map((m) => m.group(0)!).toList();
+    List<String> operands = expression.split(RegExp(r'[\+\-\*/]'));
 
-    int varIndex = 0;
     double result = 0;
 
     for (int i = 0; i < operands.length; i++) {
       String op = operands[i].trim().toLowerCase();
       double val = 0;
 
-      if (op == 'variable') {
-        if (varIndex < item.internalValues.length) {
-          val = item.internalValues[varIndex++];
-        }
+      if (op == 'variable' || item.variableValues.containsKey(op)) {
+        val = item.variableValues[op] ?? 0;
       } else if (op.contains('(') && op.endsWith(')')) {
         var parts = op.split('(');
         String secName = parts[0].trim().toLowerCase();
         String itemName = parts[1].replaceAll(')', '').trim().toLowerCase();
         val = _resolveScopedItem(secName, itemName);
+      } else if (op.contains('.')) {
+        // Python/Ruby Style Property access: Section.total, Section.avg, etc.
+        var parts = op.split('.');
+        String target = parts[0].trim().toLowerCase();
+        String prop = parts[1].trim().toLowerCase();
+        val = _resolveProperty(target, prop, knownTotals);
       } else {
         val = double.tryParse(op) ?? _resolveGlobalIdentifier(op, knownTotals);
       }
@@ -893,18 +1065,76 @@ class _PreviewScreenState extends State<PreviewScreen> {
         result = val;
       } else {
         String operator = operators[i - 1];
-        if (operator == '+') {
-          result += val;
-        } else if (operator == '-') {
-          result -= val;
-        } else if (operator == '*') {
-          result *= val;
-        } else if (operator == '/') {
-          result = val != 0 ? result / val : 0;
+        if (operator == '+') result += val;
+        if (operator == '-') result -= val;
+        if (operator == '*') result *= val;
+        if (operator == '/') result = val == 0 ? 0 : result / val;
+      }
+    }
+
+    return result;
+  }
+
+  bool _evaluateCondition(String condition, Map<String, double> knownTotals) {
+    // Simple condition evaluator: a > b, a < b, a == b, a >= b, a <= b
+    final reg = RegExp(r'(>=|<=|==|>|<)');
+    final match = reg.firstMatch(condition);
+    if (match == null) return false;
+
+    String op = match.group(0)!;
+    var parts = condition.split(op);
+    double v1 = _resolveAtomic(parts[0].trim().toLowerCase(), knownTotals);
+    double v2 = _resolveAtomic(parts[1].trim().toLowerCase(), knownTotals);
+
+    if (op == '>') return v1 > v2;
+    if (op == '<') return v1 < v2;
+    if (op == '==') return v1 == v2;
+    if (op == '>=') return v1 >= v2;
+    if (op == '<=') return v1 <= v2;
+    return false;
+  }
+
+  double _resolveAtomic(String name, Map<String, double> knownTotals) {
+    if (double.tryParse(name) != null) return double.parse(name);
+    if (name.contains('.')) {
+      var parts = name.split('.');
+      return _resolveProperty(parts[0], parts[1], knownTotals);
+    }
+    return _resolveGlobalIdentifier(name, knownTotals);
+  }
+
+  double _resolveProperty(
+    String target,
+    String prop,
+    Map<String, double> knownTotals,
+  ) {
+    // target could be a section or an item title
+    SectionData? section;
+    for (var tab in widget.data.tabs) {
+      for (var s in tab.sections) {
+        if (s.title.toLowerCase() == target) {
+          section = s;
+          break;
         }
       }
     }
-    return result;
+
+    if (section != null) {
+      if (prop == 'total') return knownTotals[target] ?? 0;
+      if (prop == 'count') return section.items.length.toDouble();
+      if (prop == 'avg') {
+        double total = knownTotals[target] ?? 0;
+        return section.items.isEmpty ? 0 : total / section.items.length;
+      }
+      if (prop == 'max') {
+        double maxVal = -double.infinity;
+        for (var item in section.items) {
+          if (item.currentValue > maxVal) maxVal = item.currentValue;
+        }
+        return maxVal == -double.infinity ? 0 : maxVal;
+      }
+    }
+    return 0;
   }
 
   double _resolveGlobalIdentifier(
@@ -1044,22 +1274,39 @@ class _PreviewScreenState extends State<PreviewScreen> {
                   ...section.items.map(
                     (item) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: ProjectCard(
-                        title: item.title,
-                        item: item,
-                        onFormulaChanged: () =>
-                            setState(() => _calculateTotals()),
-                        chips: item.options.isEmpty ? null : item.options,
-                        selectedIndex: item.options.isEmpty ? null : 0,
-                        showInput: item.inputType == 'NUMERICO',
-                        initialValue: item.currentValue.toStringAsFixed(0),
-                        onChanged: (val) {
-                          setState(() {
-                            item.currentValue = double.tryParse(val) ?? 0;
-                            _calculateTotals();
-                          });
-                        },
-                      ),
+                      child: item.inputType == 'TEXTO'
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                                horizontal: 12.0,
+                              ),
+                              child: Text(
+                                _resolveTextTemplate(item),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontStyle: FontStyle.italic,
+                                  fontWeight: FontWeight.w300,
+                                ),
+                              ),
+                            )
+                          : ProjectCard(
+                              title: item.title,
+                              item: item,
+                              onFormulaChanged: () =>
+                                  setState(() => _calculateTotals()),
+                              chips: item.options.isEmpty ? null : item.options,
+                              selectedIndex: item.options.isEmpty ? null : 0,
+                              allGlobalNames: _getAllGlobalNames(),
+                              showInput: item.inputType == 'NUMERICO',
+                              initialValue: item.currentValue.toStringAsFixed(0),
+                              onChanged: (val) {
+                                setState(() {
+                                  item.currentValue = double.tryParse(val) ?? 0;
+                                  _calculateTotals();
+                                });
+                              },
+                            ),
                     ),
                   ),
                 ],
@@ -1085,6 +1332,38 @@ class _PreviewScreenState extends State<PreviewScreen> {
         },
       ),
     );
+  }
+
+  Set<String> _getAllGlobalNames() {
+    Set<String> names = {};
+    for (var tab in widget.data.tabs) {
+      for (var section in tab.sections) {
+        names.add(section.title.toLowerCase());
+        for (var item in section.items) {
+          names.add(item.title.toLowerCase());
+        }
+      }
+    }
+    return names;
+  }
+
+  String _resolveTextTemplate(ItemData item) {
+    if (item.textTemplate == null) return "";
+    String result = item.textTemplate!;
+    final reg = RegExp(r'\{([^}]+)\}');
+    final matches = reg.allMatches(result).toList();
+
+    // Replace from back to front to keep offsets correct
+    for (var match in matches.reversed) {
+      String varName = match.group(1)!.trim().toLowerCase();
+      double val = _resolveGlobalIdentifier(varName, sectionTotals);
+      result = result.replaceRange(
+        match.start,
+        match.end,
+        val.toStringAsFixed(2).replaceAll('.00', ''),
+      );
+    }
+    return result;
   }
 }
 
@@ -1142,6 +1421,7 @@ class ProjectCard extends StatefulWidget {
   final int? selectedIndex;
   final bool showInput;
   final String initialValue;
+  final Set<String> allGlobalNames;
   final Function(String) onChanged;
 
   final ItemData item;
@@ -1154,6 +1434,7 @@ class ProjectCard extends StatefulWidget {
     required this.onFormulaChanged,
     this.chips,
     this.selectedIndex,
+    this.allGlobalNames = const {},
     this.showInput = false,
     this.initialValue = '0',
     required this.onChanged,
@@ -1170,6 +1451,23 @@ class _ProjectCardState extends State<ProjectCard> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue);
+    if (widget.initialValue == '0') {
+      _controller.selection = TextSelection.fromPosition(
+        const TextPosition(offset: 1),
+      );
+    }
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didUpdateWidget(ProjectCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue &&
+        _controller.text != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
   }
 
   @override
@@ -1214,7 +1512,9 @@ class _ProjectCardState extends State<ProjectCard> {
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     onChanged: widget.onChanged,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: _controller.text == '0' ? Colors.white38 : Colors.white,
+                    ),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
@@ -1286,39 +1586,73 @@ class _ProjectCardState extends State<ProjectCard> {
     List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
 
     List<Widget> children = [];
-    int varIndex = 0;
 
     for (int i = 0; i < operands.length; i++) {
       String op = operands[i].trim();
-      if (op.toLowerCase() == 'variable') {
-        final int currentIdx = varIndex++;
+      String lowerOp = op.toLowerCase();
+
+      bool isLocalVariable =
+          lowerOp == 'variable' ||
+          (double.tryParse(op) == null &&
+              !lowerOp.contains('(') &&
+              !widget.allGlobalNames.contains(lowerOp));
+
+      if (isLocalVariable) {
         children.add(
-          Container(
-            width: 60,
-            height: 35,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: const Color(0xFF81D4FA).withValues(alpha: 0.3),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (lowerOp != 'variable')
+                Text(
+                  op,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              Container(
+                width: 65,
+                height: 35,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF81D4FA).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: TextField(
+                  controller: TextEditingController(
+                    text:
+                        widget.item.variableValues[lowerOp] == null ||
+                                widget.item.variableValues[lowerOp] == 0
+                            ? ''
+                            : widget.item.variableValues[lowerOp]!
+                                .toStringAsFixed(0),
+                  )..selection = TextSelection.fromPosition(
+                    TextPosition(
+                      offset:
+                          widget.item.variableValues[lowerOp] == null ||
+                                  widget.item.variableValues[lowerOp] == 0
+                              ? 0
+                              : widget.item.variableValues[lowerOp]!
+                                  .toStringAsFixed(0)
+                                  .length,
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: '0 ',
+                    hintStyle: TextStyle(color: Colors.white38),
+                  ),
+                  onChanged: (val) {
+                    widget.item.variableValues[lowerOp] =
+                        double.tryParse(val) ?? 0;
+                    widget.onFormulaChanged();
+                  },
+                ),
               ),
-            ),
-            child: TextField(
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-              ),
-              onChanged: (val) {
-                setState(() {
-                  widget.item.internalValues[currentIdx] =
-                      double.tryParse(val) ?? 0;
-                  widget.onFormulaChanged();
-                });
-              },
-            ),
+            ],
           ),
         );
       } else {
