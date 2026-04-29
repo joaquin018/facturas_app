@@ -828,7 +828,7 @@ class _IndentGuidePainter extends CustomPainter {
       final bottom = (top + lineHeight).clamp(0.0, size.height);
 
       for (int level = 1; level <= indentLevels; level++) {
-        final x = level * indentWidth;
+        final x = (level - 1) * indentWidth;
         if (x > size.width) break;
 
         final crispX = x.roundToDouble() + 0.5;
