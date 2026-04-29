@@ -225,7 +225,7 @@ class PseudocodeController extends TextEditingController {
   }) {
     final List<TextSpan> children = [];
     final RegExp regExp = RegExp(
-      r'(:)([^"=:\n]+)$|(:)|(#.*)|("[^"\n]*")|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)|(^[^ \s/][^:\n]*)|(^ {2}[^ \s/][^:\n]*)|(^ {4,}[^:\n]*)',
+      r'(:)([^"=:\n]+)$|(:)|(#.*)|("[^"\n]*")|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)|(^[^ \s/#][^:\n]*)|(^ {2}[^ \s/#][^:\n]*)|(^ {4,}[^ #\n][^:\n]*)',
       multiLine: true,
       caseSensitive: false,
     );
@@ -277,7 +277,6 @@ class PseudocodeController extends TextEditingController {
               text: match.group(0),
               style: style?.copyWith(
                 color: const Color(0xFF6A9955),
-                fontStyle: FontStyle.italic,
               ),
             ),
           );
@@ -525,9 +524,10 @@ class _EditorScreenState extends State<EditorScreen> {
   OverlayEntry? _autocompleteOverlay;
   List<String> _suggestions = [];
   int _cursorPosition = 0;
-
-  final List<String> _keywords = [
-    'variable',
+  final List<Map<String, dynamic>> _keywords = [
+    {'name': 'if', 'type': 'keyword'},
+    {'name': 'unless', 'type': 'keyword'},
+    {'name': 'variable', 'type': 'keyword'},
   ];
 
   @override
@@ -555,49 +555,70 @@ class _EditorScreenState extends State<EditorScreen> {
     if (selection.isCollapsed && selection.baseOffset >= 0) {
       _cursorPosition = selection.baseOffset;
 
-      List<String> sectionVariables =
-          RegExp(r'seccion:\s*(.+)', caseSensitive: false)
-              .allMatches(text)
-              .map((m) => m.group(1)!.trim())
-              .where(
-                (name) =>
-                    name.isNotEmpty &&
-                    !name.contains('+') &&
-                    !name.contains('-'),
-              )
-              .toList();
+      // Dynamic parsing of names
+      List<Map<String, dynamic>> dynamicSuggestions = [];
+      final lines = text.split('\n');
+      for (var line in lines) {
+        if (line.trim().isEmpty || line.trim().startsWith('#')) continue;
+        int indent = 0;
+        for (int i = 0; i < line.length; i++) {
+          if (line[i] == ' ') {
+            indent++;
+          } else {
+            break;
+          }
+        }
+        String content = line.trim();
+        if (content.contains(':')) {
+          content = content.split(':')[0].trim();
+        }
 
-      List<String> allSuggestions = [..._keywords, ...sectionVariables];
+        if (indent == 0) {
+          dynamicSuggestions.add({'name': content, 'type': 'tab'});
+        } else if (indent == 2) {
+          dynamicSuggestions.add({'name': content, 'type': 'section'});
+        } else if (indent >= 4) {
+          dynamicSuggestions.add({'name': content, 'type': 'item'});
+        }
+      }
 
       final beforeCursor = text.substring(0, _cursorPosition);
-      final lastWordMatch = RegExp(
-        r'([\wáéíóúñ]+):?$',
-      ).firstMatch(beforeCursor);
+      
+      // Check for property suggestion (after a dot)
+      final dotMatch = RegExp(r'([\wáéíóúñ]+)\.$').firstMatch(beforeCursor);
+      if (dotMatch != null) {
+        _suggestions = [
+          'total',
+          'avg',
+          'count',
+          'max',
+          'min'
+        ];
+        _showAutocomplete(isProperty: true);
+        return;
+      }
+
+      final lastWordMatch = RegExp(r'([\wáéíóúñ]+)$').firstMatch(beforeCursor);
 
       if (lastWordMatch != null) {
         final query = lastWordMatch.group(0)!.toLowerCase();
-        _suggestions = allSuggestions
-            .where(
-              (k) =>
-                  k.toLowerCase().startsWith(query) && k.toLowerCase() != query,
-            )
-            .toSet()
-            .toList();
+        
+        List<Map<String, dynamic>> filtered = [
+          ..._keywords,
+          ...dynamicSuggestions,
+        ].where((s) {
+          final name = s['name'].toString().toLowerCase();
+          return name.startsWith(query) && name != query;
+        }).toList();
 
-        if (_suggestions.isNotEmpty) {
-          _showAutocomplete();
+        if (filtered.isNotEmpty) {
+          _suggestions = filtered.map((s) => s['name'].toString()).toList();
+          _showAutocomplete(types: filtered.map((s) => s['type'].toString()).toList());
         } else {
           _hideAutocomplete();
         }
       } else {
-        if (beforeCursor.isEmpty ||
-            beforeCursor.endsWith('\n') ||
-            beforeCursor.endsWith(' ')) {
-          _suggestions = ['seccion:', 'item:', 'tab:'];
-          _showAutocomplete();
-        } else {
-          _hideAutocomplete();
-        }
+        _hideAutocomplete();
       }
     } else {
       _hideAutocomplete();
@@ -605,37 +626,114 @@ class _EditorScreenState extends State<EditorScreen> {
     setState(() {});
   }
 
-  void _showAutocomplete() {
+  Offset _getCursorOffset() {
+    final text = _controller.text;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 14,
+          height: 1.5,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.of(context).textScaler,
+    );
+    textPainter.layout();
+    
+    Offset caretOffset = textPainter.getOffsetForCaret(
+      TextPosition(offset: _cursorPosition),
+      Rect.zero,
+    );
+    
+    // Add editor padding (left: 10, top: 20) and move down by one line height (approx 21)
+    return Offset(caretOffset.dx + 10, caretOffset.dy + 20 + 22); 
+  }
+
+  void _showAutocomplete({List<String>? types, bool isProperty = false}) {
     _hideAutocomplete();
+    
+    final cursorOffset = _getCursorOffset();
 
     _autocompleteOverlay = OverlayEntry(
       builder: (context) => Positioned(
-        width: 200,
+        width: 220,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          offset: const Offset(50, 40),
+          offset: cursorOffset,
           child: Material(
-            elevation: 8,
-            color: const Color(0xFF2D2D2D),
-            borderRadius: BorderRadius.circular(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: _suggestions
-                  .map(
-                    (s) => ListTile(
-                      dense: true,
-                      title: Text(
-                        s,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'monospace',
-                        ),
+            elevation: 12,
+            color: const Color(0xFF252526),
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white10),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(_suggestions.length, (index) {
+                  final s = _suggestions[index];
+                  final type = isProperty ? 'property' : (types?[index] ?? 'variable');
+                  
+                  IconData icon;
+                  Color iconColor;
+                  switch (type) {
+                    case 'keyword':
+                      icon = Icons.vpn_key_rounded;
+                      iconColor = const Color(0xFFC586C0);
+                      break;
+                    case 'section':
+                      icon = Icons.folder_open_rounded;
+                      iconColor = const Color(0xFF4EC9B0);
+                      break;
+                    case 'tab':
+                      icon = Icons.tab_unselected_rounded;
+                      iconColor = const Color(0xFF569CD6);
+                      break;
+                    case 'property':
+                      icon = Icons.settings_input_component_rounded;
+                      iconColor = const Color(0xFFDCDCAA);
+                      break;
+                    default:
+                      icon = Icons.code_rounded;
+                      iconColor = const Color(0xFF9CDCFE);
+                  }
+
+                  return InkWell(
+                    onTap: () => _applySuggestion(s, isProperty: isProperty),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 14, color: iconColor),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              s,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'monospace',
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            type.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.white24,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      onTap: () => _applySuggestion(s),
                     ),
-                  )
-                  .toList(),
+                  );
+                }),
+              ),
             ),
           ),
         ),
@@ -650,27 +748,33 @@ class _EditorScreenState extends State<EditorScreen> {
     _autocompleteOverlay = null;
   }
 
-  void _applySuggestion(String suggestion) {
+  void _applySuggestion(String suggestion, {bool isProperty = false}) {
     final text = _controller.text;
     final beforeCursor = text.substring(0, _cursorPosition);
-    final lastWordMatch = RegExp(r'([\wáéíóúñ]+):?$').firstMatch(beforeCursor);
-
+    
     String newText;
     int newCursorPos;
 
-    if (lastWordMatch != null) {
-      newText = text.replaceRange(
-        lastWordMatch.start,
-        lastWordMatch.end,
-        suggestion,
-      );
-      newCursorPos = lastWordMatch.start + suggestion.length;
-    } else {
-      newText =
-          text.substring(0, _cursorPosition) +
-          suggestion +
-          text.substring(_cursorPosition);
+    if (isProperty) {
+      newText = text.substring(0, _cursorPosition) + 
+                suggestion + 
+                text.substring(_cursorPosition);
       newCursorPos = _cursorPosition + suggestion.length;
+    } else {
+      final lastWordMatch = RegExp(r'([\wáéíóúñ]+)$').firstMatch(beforeCursor);
+      if (lastWordMatch != null) {
+        newText = text.replaceRange(
+          lastWordMatch.start,
+          lastWordMatch.end,
+          suggestion,
+        );
+        newCursorPos = lastWordMatch.start + suggestion.length;
+      } else {
+        newText = text.substring(0, _cursorPosition) +
+                  suggestion +
+                  text.substring(_cursorPosition);
+        newCursorPos = _cursorPosition + suggestion.length;
+      }
     }
 
     _controller.value = TextEditingValue(
