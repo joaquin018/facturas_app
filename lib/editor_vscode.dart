@@ -1735,6 +1735,7 @@ class _ProjectCardState extends State<ProjectCard> {
               Container(
                 width: 65,
                 height: 35,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
@@ -1765,11 +1766,13 @@ class _ProjectCardState extends State<ProjectCard> {
                         ),
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
+                  textAlignVertical: TextAlignVertical.center,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
-                    hintText: '0 ',
+                    contentPadding: EdgeInsets.zero,
+                    hintText: '0',
                     hintStyle: TextStyle(color: Colors.white38),
                   ),
                   onChanged: (val) {
