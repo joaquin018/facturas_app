@@ -3,6 +3,30 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
 
+const String exampleProjectCode = """proyecto: Sistema de Facturación Pro
+
+tabs: Instalación
+  seccion: Materiales Básicos
+    item: Caja Embutida | opciones: 14, 16, 22, 24 | tipo: numerico
+    item: cable 2.5mm | opciones: Rojo, Verde, Blanco | tipo: numerico
+    item: térmico 25A | tipo: numerico
+
+  seccion: Cálculos de Prueba
+    // Caso 1: Solo variables internas (Crea dos cuadros de entrada)
+    item: variable + variable = Subtotal Local
+    
+    // Caso 2: Variable + Referencia a un ítem global
+    item: variable + térmico 25A = Total con Térmico
+    
+    // Caso 3: Variable + Total de una sección completa
+    item: variable * Materiales Básicos = Multiplicador Sección
+
+tabs: Avanzado
+  seccion: Desambiguación
+    // Caso 4: Referencia específica Sección(Ítem)
+    item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
+
+
 void main() {
   runApp(const FacturasApp());
 }
@@ -432,7 +456,19 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
 
   Future<void> _refreshProjects() async {
     setState(() => _isLoading = true);
-    final projects = await DatabaseHelper.instance.getAllProjects();
+    var projects = await DatabaseHelper.instance.getAllProjects();
+    
+    if (projects.isEmpty) {
+      // Seed with v5 example project
+      final exampleProject = SavedProject(
+        name: "Sistema de Facturación Pro",
+        code: exampleProjectCode,
+        valuesJson: "{}",
+      );
+      await DatabaseHelper.instance.createProject(exampleProject);
+      projects = await DatabaseHelper.instance.getAllProjects();
+    }
+
     setState(() {
       _projects = projects;
       _isLoading = false;
@@ -1028,6 +1064,7 @@ class _EditorScreenState extends State<EditorScreen> {
       appBar: AppBar(
         toolbarHeight: 50,
         backgroundColor: Colors.black45,
+        automaticallyImplyLeading: false,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1503,10 +1540,6 @@ class _PreviewScreenState extends State<PreviewScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 24,
                       ),
-                    ),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: widget.onBack,
                     ),
                     actions: [
                       IconButton(
