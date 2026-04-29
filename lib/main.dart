@@ -651,7 +651,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 Container(
                   width: 45,
                   padding: const EdgeInsets.only(top: 20),
-                  color: Colors.black12,
+                  color: Colors.transparent,
                   child: Column(
                     children: List.generate(
                       lineCount,
