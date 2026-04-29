@@ -36,15 +36,20 @@ class SectionData {
 class ItemData {
   String title;
   List<String> options;
-  String inputType; // 'NUMERICO', 'TEXTO', 'NADA'
+  String inputType; // 'NUMERICO', 'TEXTO', 'NADA', 'FORMULA'
   double currentValue;
+  String? formula;
+  List<double> internalValues;
 
   ItemData({
     required this.title,
     List<String>? options,
     this.inputType = 'NADA',
     this.currentValue = 0,
-  }) : options = options ?? [];
+    this.formula,
+    List<double>? internalValues,
+  })  : options = options ?? [],
+        internalValues = internalValues ?? [];
 }
 
 class TabData {
@@ -114,9 +119,28 @@ class PseudocodeParser {
           }
         }
 
-        currentSection.items.add(
-          ItemData(title: title, options: options, inputType: type),
-        );
+        String? formula;
+        if (title.contains('=') && (title.contains('+') || title.contains('-') || title.contains('*') || title.contains('/'))) {
+          formula = title;
+          type = 'FORMULA';
+          // Count 'variable' occurrences to initialize internalValues
+          int varCount = RegExp(r'\bvariable\b').allMatches(formula).length;
+          List<double> internalValues = List.filled(varCount, 0.0);
+          
+          currentSection.items.add(
+            ItemData(
+              title: title, 
+              options: options, 
+              inputType: type,
+              formula: formula,
+              internalValues: internalValues,
+            ),
+          );
+        } else {
+          currentSection.items.add(
+            ItemData(title: title, options: options, inputType: type),
+          );
+        }
       }
     }
 
@@ -281,26 +305,28 @@ class FacturasApp extends StatefulWidget {
 }
 
 class _FacturasAppState extends State<FacturasApp> {
-  String _pseudocode = """proyecto: Instalación Eléctrica
+  String _pseudocode = """proyecto: Sistema de Facturación Pro
 
-tabs: interior
-  seccion: tablero
-    item: embutido | opciones: 14, 16, 18, 22, 24 | tipo: numerico
-    item: sobrepuesto | opciones: 14, 16, 18, 22, 24 | tipo: numerico
+tabs: Instalación
+  seccion: Materiales Básicos
+    item: Caja Embutida | opciones: 14, 16, 22, 24 | tipo: numerico
+    item: cable 2.5mm | opciones: Rojo, Verde, Blanco | tipo: numerico
+    item: térmico 25A | tipo: numerico
 
-  seccion: automático bipolar
-    item: 25A | tipo: numerico
-    item: 30A | tipo: numerico
+  seccion: Cálculos de Prueba
+    // Caso 1: Solo variables internas (Crea dos cuadros de entrada)
+    item: variable + variable = Subtotal Local
+    
+    // Caso 2: Variable + Referencia a un ítem global
+    item: variable + térmico 25A = Total con Térmico
+    
+    // Caso 3: Variable + Total de una sección completa
+    item: variable * Materiales Básicos = Multiplicador Sección
 
-  seccion: total | tablero + automático bipolar
-
-tabs: empalme
-  seccion: acometida
-    item: monofásica | tipo: numerico
-
-tabs: cables
-  seccion: conductores
-    item: 2.5mm | tipo: numerico""";
+tabs: Avanzado
+  seccion: Desambiguación
+    // Caso 4: Referencia específica Sección(Ítem)
+    item: variable + Materiales Básicos(cable 2.5mm) = Precisión Total""";
 
   late ProjectData _projectData;
 
@@ -908,7 +934,18 @@ class _PreviewScreenState extends State<PreviewScreen> {
   void _calculateTotals() {
     Map<String, double> newTotals = {};
 
-    // Calculate literal sections across ALL tabs
+    // 1. Update items with formulas FIRST (they might depend on other items)
+    for (var tab in widget.data.tabs) {
+      for (var section in tab.sections) {
+        for (var item in section.items) {
+          if (item.inputType == 'FORMULA' && item.formula != null) {
+            item.currentValue = _evaluateItemFormula(item, newTotals);
+          }
+        }
+      }
+    }
+
+    // 2. Calculate literal sections across ALL tabs
     for (var tab in widget.data.tabs) {
       for (var section in tab.sections) {
         if (!_isFormula(section.title)) {
@@ -921,7 +958,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
       }
     }
 
-    // Evaluate formulas across ALL tabs
+    // 3. Evaluate formulas across ALL tabs
     for (var tab in widget.data.tabs) {
       for (var section in tab.sections) {
         if (_isFormula(section.title)) {
@@ -936,6 +973,69 @@ class _PreviewScreenState extends State<PreviewScreen> {
     setState(() {
       sectionTotals = newTotals;
     });
+  }
+
+  double _evaluateItemFormula(ItemData item, Map<String, double> knownTotals) {
+    String formulaText = item.formula!.split('=')[0].trim();
+    List<String> operators = RegExp(r'[\+\-\*/]').allMatches(formulaText).map((m) => m.group(0)!).toList();
+    List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
+
+    int varIndex = 0;
+    double result = 0;
+
+    for (int i = 0; i < operands.length; i++) {
+      String op = operands[i].trim().toLowerCase();
+      double val = 0;
+
+      if (op == 'variable') {
+        if (varIndex < item.internalValues.length) {
+          val = item.internalValues[varIndex++];
+        }
+      } else if (op.contains('(') && op.endsWith(')')) {
+        var parts = op.split('(');
+        String secName = parts[0].trim().toLowerCase();
+        String itemName = parts[1].replaceAll(')', '').trim().toLowerCase();
+        val = _resolveScopedItem(secName, itemName);
+      } else {
+        val = double.tryParse(op) ?? _resolveGlobalIdentifier(op, knownTotals);
+      }
+
+      if (i == 0) {
+        result = val;
+      } else {
+        String operator = operators[i - 1];
+        if (operator == '+') result += val;
+        else if (operator == '-') result -= val;
+        else if (operator == '*') result *= val;
+        else if (operator == '/') result = val != 0 ? result / val : 0;
+      }
+    }
+    return result;
+  }
+
+  double _resolveGlobalIdentifier(String name, Map<String, double> knownTotals) {
+    if (knownTotals.containsKey(name)) return knownTotals[name]!;
+    for (var tab in widget.data.tabs) {
+      for (var section in tab.sections) {
+        for (var item in section.items) {
+          if (item.title.toLowerCase() == name) return item.currentValue;
+        }
+      }
+    }
+    return 0;
+  }
+
+  double _resolveScopedItem(String secName, String itemName) {
+    for (var tab in widget.data.tabs) {
+      for (var section in tab.sections) {
+        if (section.title.toLowerCase() == secName) {
+          for (var item in section.items) {
+            if (item.title.toLowerCase() == itemName) return item.currentValue;
+          }
+        }
+      }
+    }
+    return 0;
   }
 
   bool _isFormula(String title) {
@@ -1071,6 +1171,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: ProjectCard(
                         title: item.title,
+                        item: item,
+                        onFormulaChanged: () => setState(() => _calculateTotals()),
                         chips: item.options.isEmpty ? null : item.options,
                         selectedIndex: item.options.isEmpty ? null : 0,
                         showInput: item.inputType == 'NUMERICO',
@@ -1166,9 +1268,14 @@ class ProjectCard extends StatefulWidget {
   final String initialValue;
   final Function(String) onChanged;
 
+  final ItemData item;
+  final Function() onFormulaChanged;
+
   const ProjectCard({
     super.key,
     required this.title,
+    required this.item,
+    required this.onFormulaChanged,
     this.chips,
     this.selectedIndex,
     this.showInput = false,
@@ -1285,8 +1392,100 @@ class _ProjectCardState extends State<ProjectCard> {
               ),
             ),
           ],
+          if (widget.item.inputType == 'FORMULA' && widget.item.formula != null) ...[
+            const SizedBox(height: 16),
+            _buildFormulaRow(),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildFormulaRow() {
+    String formulaText = widget.item.formula!.split('=')[0];
+    String resultLabel = widget.item.formula!.split('=').last;
+    List<String> operators = RegExp(r'[\+\-\*/]').allMatches(formulaText).map((m) => m.group(0)!).toList();
+    List<String> operands = formulaText.split(RegExp(r'[\+\-\*/]'));
+
+    List<Widget> children = [];
+    int varIndex = 0;
+
+    for (int i = 0; i < operands.length; i++) {
+      String op = operands[i].trim();
+      if (op.toLowerCase() == 'variable') {
+        final int currentIdx = varIndex++;
+        children.add(
+          Container(
+            width: 60,
+            height: 35,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF81D4FA).withValues(alpha: 0.3)),
+            ),
+            child: TextField(
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+              onChanged: (val) {
+                setState(() {
+                  widget.item.internalValues[currentIdx] = double.tryParse(val) ?? 0;
+                  widget.onFormulaChanged();
+                });
+              },
+            ),
+          ),
+        );
+      } else {
+        children.add(
+          Text(
+            op,
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+        );
+      }
+
+      if (i < operators.length) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              operators[i],
+              style: const TextStyle(color: Color(0xFF81D4FA), fontWeight: FontWeight.bold),
+            ),
+          ),
+        );
+      }
+    }
+
+    children.add(
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: const Text("=", style: TextStyle(color: Colors.grey)),
+      ),
+    );
+
+    children.add(
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF81D4FA).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          widget.item.currentValue.toStringAsFixed(0),
+          style: const TextStyle(
+            color: Color(0xFF81D4FA),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: children),
     );
   }
 }
