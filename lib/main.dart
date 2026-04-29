@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'editor_vscode.dart';
 
 const String exampleProjectCode = """Configuración General:
@@ -456,11 +457,11 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                                         backgroundColor: Colors
                                                             .white
                                                             .withValues(
-                                                               alpha: 0.05,
-                                                             ),
+                                                              alpha: 0.05,
+                                                            ),
                                                         padding:
                                                             const EdgeInsets.symmetric(
-                                                               vertical: 20,
+                                                              vertical: 20,
                                                             ),
                                                         shape: RoundedRectangleBorder(
                                                           borderRadius:
@@ -494,7 +495,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                                             ),
                                                         padding:
                                                             const EdgeInsets.symmetric(
-                                                               vertical: 20,
+                                                              vertical: 20,
                                                             ),
                                                         shape: RoundedRectangleBorder(
                                                           borderRadius:
@@ -549,6 +550,8 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
   }
 }
 
+enum AppMode { project, terminal }
+
 class ProjectEditorWrapper extends StatefulWidget {
   final SavedProject project;
   const ProjectEditorWrapper({super.key, required this.project});
@@ -560,12 +563,16 @@ class ProjectEditorWrapper extends StatefulWidget {
 class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
   late String _pseudocode;
   late ProjectData _projectData;
+  AppMode _appMode = AppMode.project;
 
   @override
   void initState() {
     super.initState();
     _pseudocode = widget.project.code;
-    _projectData = PseudocodeParser.parse(_pseudocode, title: widget.project.name);
+    _projectData = PseudocodeParser.parse(
+      _pseudocode,
+      title: widget.project.name,
+    );
     _applySavedValues();
   }
 
@@ -624,17 +631,94 @@ class _ProjectEditorWrapperState extends State<ProjectEditorWrapper> {
   void _updateProject(String newCode) {
     setState(() {
       _pseudocode = newCode;
-      _projectData = PseudocodeParser.parse(newCode, title: widget.project.name);
+      _projectData = PseudocodeParser.parse(
+        newCode,
+        title: widget.project.name,
+      );
       _saveChanges();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return MainSplitScreen(
-      initialCode: _pseudocode,
-      projectData: _projectData,
-      onChanged: _updateProject,
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E1E1E),
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (_appMode == AppMode.project) _buildProjectTopBar(),
+            Expanded(
+              child: _appMode == AppMode.project
+                  ? PreviewScreen(
+                      data: _projectData,
+                      isLive: true,
+                      showModeSelector: false,
+                    )
+                  : MainSplitScreen(
+                      initialCode: _pseudocode,
+                      projectData: _projectData,
+                      onChanged: _updateProject,
+                      onExitTerminal: () =>
+                          setState(() => _appMode = AppMode.project),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProjectTopBar() {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: const BoxDecoration(color: Colors.transparent),
+      child: Row(
+        children: [
+          Text(
+            widget.project.name.isEmpty
+                ? "Nuevo Proyecto"
+                : widget.project.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(
+              Icons.share_outlined,
+              color: Color(0xFF81D4FA),
+              size: 24,
+            ),
+            onPressed: () {}, // Non-functional
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(
+              LucideIcons.eraser,
+              color: Color(0xFF81D4FA),
+              size: 22, // Lucide icons usually look better slightly smaller
+            ),
+            onPressed: () {}, // Non-functional
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(
+              Icons.terminal_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+            onPressed: () => setState(() => _appMode = AppMode.terminal),
+          ),
+        ],
+      ),
     );
   }
 }

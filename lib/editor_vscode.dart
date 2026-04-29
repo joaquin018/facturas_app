@@ -441,12 +441,14 @@ class MainSplitScreen extends StatefulWidget {
   final String initialCode;
   final ProjectData projectData;
   final Function(String) onChanged;
+  final VoidCallback onExitTerminal;
 
   const MainSplitScreen({
     super.key,
     required this.initialCode,
     required this.projectData,
     required this.onChanged,
+    required this.onExitTerminal,
   });
 
   @override
@@ -458,28 +460,58 @@ class _MainSplitScreenState extends State<MainSplitScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _viewMode == ViewMode.edit
-                  ? EditorScreen(
-                      initialCode: widget.initialCode,
-                      onChanged: widget.onChanged,
-                      currentMode: _viewMode,
-                      onModeChanged: (mode) => setState(() => _viewMode = mode),
-                    )
-                  : PreviewScreen(
-                      data: widget.projectData,
-                      isLive: true,
-                      onBack: () => setState(() => _viewMode = ViewMode.edit),
-                      showModeSelector: true,
-                      onModeChanged: (mode) => setState(() => _viewMode = mode),
-                    ),
-            ),
-          ],
+    return Column(
+      children: [
+        _buildTerminalTopBar(),
+        Expanded(
+          child: _viewMode == ViewMode.edit
+              ? EditorScreen(
+                  initialCode: widget.initialCode,
+                  onChanged: widget.onChanged,
+                  currentMode: _viewMode,
+                  onModeChanged: (mode) => setState(() => _viewMode = mode),
+                )
+              : PreviewScreen(
+                  data: widget.projectData,
+                  isLive: true,
+                  showModeSelector: false,
+                  onModeChanged: (mode) => setState(() => _viewMode = mode),
+                ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildTerminalTopBar() {
+    return Container(
+      height: 60,
+      color: Colors.black45,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 10,
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white54),
+              onPressed: widget.onExitTerminal,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ModeButton(
+                title: 'Editar',
+                isSelected: _viewMode == ViewMode.edit,
+                onTap: () => setState(() => _viewMode = _viewMode == ViewMode.edit ? _viewMode : ViewMode.edit),
+              ),
+              _ModeButton(
+                title: 'Visualizar',
+                isSelected: _viewMode == ViewMode.preview,
+                onTap: () => setState(() => _viewMode = _viewMode == ViewMode.preview ? _viewMode : ViewMode.preview),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -777,26 +809,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
-      appBar: AppBar(
-        toolbarHeight: 50,
-        backgroundColor: Colors.black45,
-        automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _ModeButton(
-              title: 'Editar',
-              isSelected: widget.currentMode == ViewMode.edit,
-              onTap: () => widget.onModeChanged(ViewMode.edit),
-            ),
-            _ModeButton(
-              title: 'Visualizar',
-              isSelected: widget.currentMode == ViewMode.preview,
-              onTap: () => widget.onModeChanged(ViewMode.preview),
-            ),
-          ],
-        ),
-      ),
       body: Container(
         color: const Color(0xFF1E1E1E),
         child: Scrollbar(
@@ -1300,48 +1312,6 @@ class _PreviewScreenState extends State<PreviewScreen> {
     );
 
     return Scaffold(
-      appBar: widget.showModeSelector
-          ? AppBar(
-              toolbarHeight: 50,
-              backgroundColor: Colors.black45,
-              automaticallyImplyLeading: false,
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _ModeButton(
-                    title: 'Editar',
-                    isSelected: false,
-                    onTap: () => widget.onModeChanged?.call(ViewMode.edit),
-                  ),
-                  _ModeButton(
-                    title: 'Visualizar',
-                    isSelected: true,
-                    onTap: () => widget.onModeChanged?.call(ViewMode.preview),
-                  ),
-                ],
-              ),
-            )
-          : (widget.isLive
-                ? AppBar(
-                    toolbarHeight: 40,
-                    backgroundColor: Colors.black26,
-                    title: const Text(
-                      'Vista Previa en Vivo',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    automaticallyImplyLeading: false,
-                  )
-                : AppBar(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    title: Text(
-                      widget.data.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
-                    ),
-                  )),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
