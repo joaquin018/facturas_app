@@ -63,6 +63,12 @@ enum ViewMode { edit, preview }
 // --- PARSER ---
 
 class PseudocodeParser {
+  static final RegExp _formulaOperatorPattern = RegExp(r'\s[\+\-\*/]\s');
+
+  static bool _looksLikeFormula(String logic) {
+    return logic.contains('=') || _formulaOperatorPattern.hasMatch(logic);
+  }
+
   static ProjectData parse(String text, {String? title}) {
     ProjectData project = ProjectData(title: title ?? "Proyecto");
     List<String> lines = text.split('\n');
@@ -134,7 +140,7 @@ class PseudocodeParser {
           if (logic.startsWith('"') && logic.endsWith('"')) {
             type = 'TEXTO';
             textTemplate = logic.substring(1, logic.length - 1);
-          } else if (logic.contains('=')) {
+          } else if (_looksLikeFormula(logic)) {
             formula = logic;
             type = 'FORMULA';
           } else if (logic.contains('..')) {
@@ -227,7 +233,7 @@ class PseudocodeController extends TextEditingController {
   }) {
     final List<TextSpan> children = [];
     final RegExp regExp = RegExp(
-      r'(#.*)|("[^"\n]*")|(^[^ \s/#][^:\n]*)|(^ {2}[^ \s/#][^:\n]*)|(^ {4,}[^ #\n][^:\n]*)|(:)([^"=:\n]+)$|(:)|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_+=><?/.,\x27;\\\]\[\-])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)',
+      r'(#.*)|("[^"\n]*")|(^[^ \s/#][^:\n]*)|(^ {2}[^ \s/#][^:\n]*)|(^ {4,}[^ #\n][^:\n]*)|(:)|(\bif\b|\bunless\b)|(\b\d+(?:\.\d+)?\b)|([()])|([{}]).?|([!@#$%^&*_=+\-/><?/.,\x27;\\\[\]])|(\b[a-zA-Z_áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_áéíóúÁÉÍÓÚñÑ]*\b)',
       multiLine: true,
       caseSensitive: false,
     );
@@ -346,22 +352,6 @@ class PseudocodeController extends TextEditingController {
             ),
           );
         } else if (match.group(6) != null) {
-          // Colon + List
-          children.add(
-            TextSpan(
-              text: match.group(6),
-              style: style?.copyWith(color: Colors.white),
-            ),
-          );
-          if (match.group(7) != null) {
-            children.add(
-              TextSpan(
-                text: match.group(7),
-                style: style?.copyWith(color: const Color(0xFFCE9178)),
-              ),
-            );
-          }
-        } else if (match.group(8) != null) {
           // Single Colon
           children.add(
             TextSpan(
@@ -369,7 +359,7 @@ class PseudocodeController extends TextEditingController {
               style: style?.copyWith(color: Colors.white),
             ),
           );
-        } else if (match.group(9) != null) {
+        } else if (match.group(7) != null) {
           // Keywords if/unless
           children.add(
             TextSpan(
@@ -380,7 +370,7 @@ class PseudocodeController extends TextEditingController {
               ),
             ),
           );
-        } else if (match.group(10) != null) {
+        } else if (match.group(8) != null) {
           // Numbers
           children.add(
             TextSpan(
@@ -388,7 +378,7 @@ class PseudocodeController extends TextEditingController {
               style: style?.copyWith(color: const Color(0xFFB5CEA8)),
             ),
           );
-        } else if (match.group(11) != null) {
+        } else if (match.group(9) != null) {
           // Parentheses
           children.add(
             TextSpan(
@@ -399,7 +389,7 @@ class PseudocodeController extends TextEditingController {
               ),
             ),
           );
-        } else if (match.group(12) != null) {
+        } else if (match.group(10) != null) {
           // Braces
           children.add(
             TextSpan(
@@ -410,7 +400,7 @@ class PseudocodeController extends TextEditingController {
               ),
             ),
           );
-        } else if (match.group(13) != null) {
+        } else if (match.group(11) != null) {
           // Symbols
           children.add(
             TextSpan(
@@ -421,7 +411,7 @@ class PseudocodeController extends TextEditingController {
               ),
             ),
           );
-        } else if (match.group(14) != null) {
+        } else if (match.group(12) != null) {
           // Identifiers
           children.add(
             TextSpan(
@@ -905,7 +895,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                 style: const TextStyle(
                                   fontFamily: 'monospace',
                                   fontSize: 14,
-                                  color: Color(0xFFCE9178),
+                                  color: Colors.white,
                                   height: 1.5,
                                 ),
                                 decoration: const InputDecoration(

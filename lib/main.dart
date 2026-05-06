@@ -21,24 +21,24 @@ Instalación Eléctrica:
     Horas Oficial: variable
     Horas Ayudante: variable
     Precio Hora: 25
-    Subtotal MO: (Horas Oficial + Horas Ayudante) * Precio Hora = Total
+    Subtotal MO: (Horas Oficial + Horas Ayudante) * Precio Hora
 
   Cálculos y Totales:
     Materiales Totales: Materiales.total = Suma Materiales
     Mano de Obra Total: Mano de Obra.total = Suma MO
     
     # Ejemplo de Condicional 'if' (Ruby style)
-    Descuento Especial: Suma Materiales * 0.10 if Suma Materiales > 500 = Descuento
+    Descuento Especial: Suma Materiales * 0.10 if Suma Materiales > 500
     
-    Subtotal Neto: Suma Materiales + Suma MO - Descuento = Neto
-    IVA Calculado: Neto * (IVA / 100) = IVA
+    Subtotal Neto: Suma Materiales + Suma MO - Descuento
+    IVA Calculado: Neto * (IVA / 100)
     
     # Ejemplo de Propiedades de Sección (Python/Ruby style)
     Estadística: "Has usado {Materiales.count} tipos de materiales con un promedio de {Materiales.avg}"
 
 Finalización:
   Resumen:
-    Total Final: Neto + IVA = Total
+    Total Final: Neto + IVA
     Aviso: "El total a pagar es {Total}. {Mensaje}"
     Extra: 50 unless Total > 2000 = Cargo Envío""";
 
@@ -280,7 +280,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     if (result != null && result.trim().isNotEmpty) {
       final defaultCode = """Inicio:
   General:
-    Resultado: variable + variable = Total""";
+    Resultado: variable + variable""";
 
       final newProject = SavedProject(
         name: result,
