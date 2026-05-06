@@ -37,6 +37,7 @@ dependencies:
   sqflite: ^2.4.2+1
   path: ^1.9.1
   lucide_icons: ^0.257.0
+  velocity_x: ^4.3.1
 
 dev_dependencies:
   flutter_test:

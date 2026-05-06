@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:velocity_x/velocity_x.dart';
 
 
 // --- MODELS ---
@@ -486,45 +487,24 @@ class _MainSplitScreenState extends State<MainSplitScreen> {
   }
 
   Widget _buildTerminalTopBar() {
-    return Container(
-      height: 60,
-      color: Colors.black45,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white54),
-              onPressed: widget.onExitTerminal,
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _ModeButton(
-                title: 'Editar',
-                isSelected: _viewMode == ViewMode.edit,
-                onTap: () => setState(
-                  () => _viewMode = _viewMode == ViewMode.edit
-                      ? _viewMode
-                      : ViewMode.edit,
-                ),
-              ),
-              _ModeButton(
-                title: 'Visualizar',
-                isSelected: _viewMode == ViewMode.preview,
-                onTap: () => setState(
-                  () => _viewMode = _viewMode == ViewMode.preview
-                      ? _viewMode
-                      : ViewMode.preview,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    return [
+      IconButton(
+        icon: const Icon(Icons.close_rounded, color: Colors.white54),
+        onPressed: widget.onExitTerminal,
+      ).positioned(left: 10),
+      [
+        _ModeButton(
+          title: 'Editar',
+          isSelected: _viewMode == ViewMode.edit,
+          onTap: () => setState(() => _viewMode = ViewMode.edit),
+        ),
+        _ModeButton(
+          title: 'Visualizar',
+          isSelected: _viewMode == ViewMode.preview,
+          onTap: () => setState(() => _viewMode = ViewMode.preview),
+        ),
+      ].hStack(alignment: MainAxisAlignment.center),
+    ].zStack(alignment: Alignment.center).h(60).box.color(Colors.black45).make();
   }
 }
 
@@ -935,30 +915,16 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF81D4FA).withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF81D4FA) : Colors.transparent,
-          ),
-        ),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            color: isSelected ? const Color(0xFF81D4FA) : Colors.grey,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
+    return title.text
+        .color(isSelected ? const Color(0xFF81D4FA) : Colors.grey)
+        .fontWeight(isSelected ? FontWeight.bold : FontWeight.normal)
+        .make()
+        .centered()
+        .box
+        .px20
+        .color(isSelected ? const Color(0xFF2D2D2D) : Colors.transparent)
+        .make()
+        .onTap(onTap);
   }
 }
 
@@ -1449,42 +1415,19 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 4,
-              height: 24,
-              decoration: BoxDecoration(
-                color: const Color(0xFF81D4FA),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Color(0xFF81D4FA),
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
-        if (value != null)
-          Text(
-            value!,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
-      ],
-    );
+    return [
+      [
+        VxBox().color(const Color(0xFF81D4FA)).roundedSM.width(4).height(24).make(),
+        12.widthBox,
+        title.text
+            .color(const Color(0xFF81D4FA))
+            .bold
+            .size(18)
+            .letterSpacing(1.2)
+            .make(),
+      ].hStack(),
+      if (value != null) value!.text.white.bold.size(20).make(),
+    ].hStack(alignment: MainAxisAlignment.spaceBetween).pSymmetric(v: 8);
   }
 }
 
@@ -1557,140 +1500,78 @@ class _ProjectCardState extends State<ProjectCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (widget.showInput)
-                Container(
-                  width: 80,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TextField(
-                    controller: _controller,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    textAlignVertical: TextAlignVertical.center,
-                    onTap: () {
-                      if (_isPlaceholder) {
-                        _controller.selection =
-                            const TextSelection.collapsed(offset: 1);
-                      }
-                    },
-                    onChanged: (val) {
-                      if (_isPlaceholder && val.length > 1) {
-                        String realVal =
-                            val.startsWith('0') ? val.substring(1) : val;
-                        _isPlaceholder = false;
-                        _controller.value = TextEditingValue(
-                          text: realVal,
-                          selection:
-                              TextSelection.collapsed(offset: realVal.length),
-                        );
-                        widget.onChanged(realVal);
-                      } else if (val.isEmpty) {
-                        _isPlaceholder = true;
-                        _controller.value = TextEditingValue(
-                          text: '0',
-                          selection: const TextSelection.collapsed(offset: 1),
-                        );
-                        widget.onChanged('0');
-                      } else {
-                        _isPlaceholder = val == '0' && val.length == 1;
-                        widget.onChanged(val);
-                      }
-                    },
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(5),
-                    ],
-                    style: TextStyle(
-                      color: _isPlaceholder ? Colors.white38 : Colors.white,
-                      fontSize: 18,
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
-                    ),
-                  ),
-                ),
+    return [
+      [
+        widget.title.text.size(18).medium.make().expand(),
+        if (widget.showInput)
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            onTap: () {
+              if (_isPlaceholder) {
+                _controller.selection = const TextSelection.collapsed(offset: 1);
+              }
+            },
+            onChanged: (val) {
+              if (_isPlaceholder && val.length > 1) {
+                String realVal = val.startsWith('0') ? val.substring(1) : val;
+                _isPlaceholder = false;
+                _controller.value = TextEditingValue(
+                  text: realVal,
+                  selection: TextSelection.collapsed(offset: realVal.length),
+                );
+                widget.onChanged(realVal);
+              } else if (val.isEmpty) {
+                _isPlaceholder = true;
+                _controller.value = TextEditingValue(
+                  text: '0',
+                  selection: const TextSelection.collapsed(offset: 1),
+                );
+                widget.onChanged('0');
+              } else {
+                _isPlaceholder = val == '0' && val.length == 1;
+                widget.onChanged(val);
+              }
+            },
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(5),
             ],
-          ),
-          if (widget.chips != null && widget.chips!.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: widget.chips!.asMap().entries.map((entry) {
-                  bool isSelected = entry.key == widget.selectedIndex;
-                  return Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Material(
-                      color: isSelected
-                          ? const Color(0xFF81D4FA)
-                          : Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      child: InkWell(
-                        onTap: () {},
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.transparent
-                                  : Colors.white.withValues(alpha: 0.1),
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            entry.value,
-                            style: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white70,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+            style: TextStyle(
+              color: _isPlaceholder ? Colors.white38 : Colors.white,
+              fontSize: 18,
             ),
-          ],
-          if (widget.item.inputType == 'FORMULA' &&
-              widget.item.formula != null) ...[
-            const SizedBox(height: 16),
-            _buildFormulaRow(),
-          ],
-        ],
-      ),
-    );
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ).box.color(Colors.black.withValues(alpha: 0.3)).roundedSM.width(80).height(40).alignCenter.make(),
+      ].hStack(alignment: MainAxisAlignment.spaceBetween),
+      if (widget.chips != null && widget.chips!.isNotEmpty) ...[
+        20.heightBox,
+        widget.chips!.asMap().entries.map((entry) {
+          bool isSelected = entry.key == widget.selectedIndex;
+          return entry.value.text
+              .color(isSelected ? Colors.black : Colors.white70)
+              .bold
+              .make()
+              .box
+              .px20.py12
+              .roundedSM
+              .color(isSelected ? const Color(0xFF81D4FA) : Colors.white.withValues(alpha: 0.05))
+              .border(color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.1))
+              .margin(const EdgeInsets.only(right: 8))
+              .make()
+              .onTap(() {});
+        }).toList().hStack().scrollHorizontal(),
+      ],
+      if (widget.item.inputType == 'FORMULA' && widget.item.formula != null) ...[
+        16.heightBox,
+        _buildFormulaRow(),
+      ],
+    ].vStack(crossAlignment: CrossAxisAlignment.start).box.p20.color(const Color(0xFF1E1E1E)).rounded.make();
   }
 
   Widget _buildFormulaRow() {
@@ -1844,26 +1725,15 @@ class CustomBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 70,
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        border: Border(top: BorderSide(color: Colors.white12, width: 0.5)),
-      ),
-      child: Row(
-        children: tabs
-            .map(
-              (tab) => Expanded(
-                child: BottomTab(
-                  title: tab.title,
-                  isSelected: tab.isSelected,
-                  onTap: () => onTabTap(tab.title),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
+    return [
+      ...tabs.map(
+        (tab) => BottomTab(
+          title: tab.title,
+          isSelected: tab.isSelected,
+          onTap: () => onTabTap(tab.title),
+        ).expand(),
+      )
+    ].hStack().box.height(70).color(const Color(0xFF1A1A1A)).border(color: Colors.white12, width: 0.5).make();
   }
 }
 
@@ -1881,20 +1751,14 @@ class BottomTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isSelected ? const Color(0xFF2D2D2D) : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Center(
-          child: Text(
-            title,
-            style: TextStyle(
-              color: isSelected ? const Color(0xFF81D4FA) : Colors.grey,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ),
-      ),
-    );
+    return title.text
+        .color(isSelected ? const Color(0xFF81D4FA) : Colors.grey)
+        .fontWeight(isSelected ? FontWeight.bold : FontWeight.normal)
+        .make()
+        .centered()
+        .box
+        .color(isSelected ? const Color(0xFF2D2D2D) : Colors.transparent)
+        .make()
+        .onTap(onTap);
   }
 }
